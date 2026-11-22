@@ -7,8 +7,11 @@ const ALLOWED_PATH = /^(?:search\/movie|search\/tv|movie\/\d+|tv\/\d+)$/;
 const TMDB_KEY_PATTERN = /^[a-f0-9]{32,64}$/i;
 
 let limiter: Ratelimit | null = null;
+const ephemeralCache = new Map<string, number>();
 
 function getLimiter(): Ratelimit | null {
+  if (process.env.RATE_LIMIT_ENABLED === 'false') return null;
+
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return null;
@@ -18,7 +21,8 @@ function getLimiter(): Ratelimit | null {
     const perMinute = Number.isFinite(parsed) && parsed > 0 ? parsed : 600;
     limiter = new Ratelimit({
       redis: new Redis({ url, token }),
-      limiter: Ratelimit.slidingWindow(perMinute, '1 m'),
+      limiter: Ratelimit.cachedFixedWindow(perMinute, '1 m'),
+      ephemeralCache,
       prefix: 'tierboxd:ratelimit',
     });
   }
