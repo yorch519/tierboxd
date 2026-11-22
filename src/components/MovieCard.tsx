@@ -40,56 +40,70 @@ export function MovieCard({ movie }: Props) {
     <div
       ref={setNodeRef}
       style={style}
+      title={movie.title}
       {...listeners}
       {...attributes}
-      className={`group relative flex-shrink-0 w-[100px] cursor-grab active:cursor-grabbing
-                  rounded-lg overflow-hidden transition-all duration-150
-                  ${isDragging ? 'opacity-40 scale-95 shadow-xl' : ''}
-                  ${isOver ? 'ring-2 ring-orange-400 scale-105' : 'hover:ring-1 hover:ring-orange-500/50 hover:scale-105'}`}
+      className={`group relative flex w-[104px] shrink-0 cursor-grab flex-col overflow-hidden rounded-xl
+                  border border-zinc-800/80 bg-zinc-900 shadow-sm transition-all duration-150
+                  active:cursor-grabbing
+                  ${isDragging ? 'scale-95 opacity-40' : ''}
+                  ${isOver
+                    ? 'ring-2 ring-accent-400'
+                    : 'hover:-translate-y-0.5 hover:border-accent-500/40 hover:ring-1 hover:ring-accent-500/30'
+                  }`}
     >
       {movie.posterUrl ? (
         <img
           src={movie.posterUrl}
           alt={movie.title}
-          className="w-full aspect-[2/3] object-cover bg-zinc-800"
+          className="aspect-[2/3] w-full bg-zinc-800 object-cover"
           loading="lazy"
           draggable={false}
         />
       ) : (
-        <div data-export-hide className="w-full aspect-[2/3] bg-zinc-800 flex flex-col items-center justify-center p-2">
-          <span className="text-xs text-zinc-500 text-center leading-tight line-clamp-4">
+        <div
+          data-export-hide
+          className="flex aspect-[2/3] w-full flex-col items-center justify-center gap-1 bg-zinc-800 p-2"
+        >
+          <span className="line-clamp-4 text-center text-[11px] font-medium leading-tight text-zinc-400">
             {movie.title}
           </span>
-          <span className="text-[10px] text-zinc-600 mt-1">{movie.year}</span>
+          <span className="text-[10px] text-zinc-600">{movie.year}</span>
         </div>
       )}
 
       <button
         data-export-hide
-        onClick={(e) => { e.stopPropagation(); setShowPicker(true); }}
-        className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded
-                   bg-black/60 text-zinc-500 hover:text-orange-400 hover:bg-black/80
-                   opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowPicker(true);
+        }}
+        className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md
+                   border border-white/10 bg-black/60 text-zinc-300 opacity-0 backdrop-blur-sm
+                   transition-all hover:bg-black/80 hover:text-accent-300 group-hover:opacity-100"
         title="Change poster"
       >
-        <Pencil className="w-2.5 h-2.5" />
+        <Pencil className="h-3 w-3" strokeWidth={2.4} />
       </button>
 
       {isOver && (
-        <div className="absolute inset-0 flex items-center pointer-events-none z-20">
-          <div className="w-1 h-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
-          <div className="flex-1 h-full bg-orange-500/10" />
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center">
+          <div className="h-full w-1 bg-accent-400 shadow-[0_0_10px_rgba(230,165,60,0.7)]" />
+          <div className="h-full flex-1 bg-accent-500/10" />
         </div>
       )}
 
-      <div data-export-hide className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1.5">
-        <p className="text-[10px] text-white font-medium leading-tight truncate">
+      <div
+        data-export-hide
+        className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent p-2"
+      >
+        <p className="line-clamp-2 text-[11px] font-semibold leading-tight text-white">
           {movie.title}
         </p>
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] text-zinc-400">{movie.year}</span>
+        <div className="mt-0.5 flex items-center justify-between">
+          <span className="text-[10px] font-medium text-zinc-300">{movie.year}</span>
           {movie.originalRating !== null && (
-            <span className="text-[10px] text-orange-300 font-medium">
+            <span className="text-[10px] font-semibold text-accent-300">
               {renderStars(movie.originalRating)}
             </span>
           )}

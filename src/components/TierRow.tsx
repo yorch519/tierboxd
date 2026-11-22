@@ -1,5 +1,5 @@
 import { useDroppable } from '@dnd-kit/core';
-import { Settings2, Trash2 } from 'lucide-react';
+import { Settings2, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import type { Tier, Movie } from '../types';
 import { MovieCard } from './MovieCard';
@@ -36,27 +36,29 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex items-stretch gap-0 min-h-[140px] border-b border-zinc-800 transition-colors
-                  ${isOver && !isOverlay ? 'bg-orange-600/10 border-orange-500/30' : ''}`}
+      className={`flex min-h-[132px] items-stretch transition-colors ${
+        isOver && !isOverlay ? 'bg-accent-500/[0.06]' : ''
+      }`}
     >
       <div
-        className="w-[120px] flex-shrink-0 flex flex-col items-center justify-center p-3 gap-1 border-r border-zinc-800"
-        style={{ backgroundColor: `${color}40` }}
+        className="flex w-[136px] shrink-0 flex-col items-center justify-center gap-1 border-r border-zinc-800/70 p-3"
+        style={{ backgroundColor: `${color}14`, boxShadow: `inset 3px 0 0 ${color}` }}
       >
         {editing ? (
-          <div className="flex flex-col items-center gap-2 w-full">
+          <div className="flex w-full flex-col items-center gap-2">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full text-center bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-100"
+              className="input px-2 py-1 text-center text-sm"
               autoFocus
             />
-            <div className="flex gap-1">
+            <div className="flex items-center gap-1.5">
               <input
                 type="color"
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
-                className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                className="h-7 w-7 cursor-pointer rounded-md border border-zinc-700 bg-transparent p-0.5"
+                title="Tier color"
               />
               <input
                 type="number"
@@ -65,23 +67,35 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
                 step={0.5}
                 min={0.5}
                 max={5}
-                className="w-14 text-center bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5 text-xs text-zinc-100"
+                className="input w-16 px-1 py-0.5 text-center text-xs"
+                title="Star rating for CSV export"
               />
             </div>
-            <button
-              onClick={handleSave}
-              className="text-[10px] px-2 py-0.5 bg-orange-600 text-white rounded hover:bg-orange-500"
-            >
-              Save
-            </button>
+            <div className="flex items-center gap-1">
+              <button onClick={handleSave} className="btn btn-primary px-2 py-1 text-[11px]">
+                Save
+              </button>
+              <button
+                onClick={() => setEditing(false)}
+                className="icon-btn h-7 w-7"
+                title="Cancel"
+              >
+                <X className="h-3.5 w-3.5" strokeWidth={2.4} />
+              </button>
+            </div>
           </div>
         ) : (
           <>
-            <span className="text-xl font-bold" style={{ color }}>
+            <span
+              className="font-display text-2xl font-semibold leading-none"
+              style={{ color }}
+            >
               {tier.name}
             </span>
-            <span className="text-[10px] text-zinc-600">{movies.length} films</span>
-            <div data-export-hide className="flex gap-0.5 mt-1">
+            <span className="mt-2 text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+              {movies.length} films
+            </span>
+            <div data-export-hide className="mt-1 flex items-center gap-0.5">
               <button
                 onClick={() => {
                   setName(tier.name);
@@ -89,29 +103,32 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
                   setStarRating(tier.starRating);
                   setEditing(true);
                 }}
-                className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                className="icon-btn h-6 w-6"
                 title="Edit tier"
               >
-                <Settings2 className="w-3 h-3" />
+                <Settings2 className="h-3.5 w-3.5" strokeWidth={2.2} />
               </button>
               <button
                 onClick={() => removeTier(tier.id)}
-                className="p-1 text-zinc-600 hover:text-red-400 transition-colors"
+                className="icon-btn h-6 w-6 hover:text-red-400"
                 title="Remove tier"
               >
-                <Trash2 className="w-3 h-3" />
+                <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
               </button>
             </div>
           </>
         )}
       </div>
 
-      <div className="flex-1 flex flex-wrap items-center p-3 gap-2">
-        {movies.length === 0 && isOver && (
-          <p className="text-xs text-orange-400 italic px-4 whitespace-nowrap animate-pulse">
-            Drop here
-          </p>
-        )}
+      <div className="flex flex-1 flex-wrap items-center gap-2.5 p-3">
+        {movies.length === 0 &&
+          (isOver ? (
+            <p className="animate-pulse whitespace-nowrap px-2 text-xs font-semibold text-accent-300">
+              Drop here
+            </p>
+          ) : (
+            <p className="px-2 text-[11px] text-zinc-700">Drop films here</p>
+          ))}
         {movies.map((movie) => (
           <MovieCard key={movie.id} movie={movie} />
         ))}

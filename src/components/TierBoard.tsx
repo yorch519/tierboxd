@@ -9,7 +9,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { Plus } from 'lucide-react';
+import { LayoutGrid, Plus } from 'lucide-react';
 import { useStore, useActiveBoard } from '../store/useStore';
 import { TierRow } from './TierRow';
 import { MovieBank } from './MovieBank';
@@ -112,24 +112,36 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-4">
+      <div className="mx-auto max-w-7xl space-y-5 px-5 py-8">
         <MovieSearchPanel />
 
-        <div id="tier-list-container" className="rounded-xl border border-zinc-800 overflow-hidden bg-zinc-900/50">
-          <div data-export-hide className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800 bg-zinc-900">
-            <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              Tier List
-            </h2>
-            <span className="text-[10px] text-zinc-600">
-              {tiers.length} tiers
-            </span>
+        <div id="tier-list-container" className="card overflow-hidden">
+          <div data-export-hide className="panel-header">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500/15 text-accent-400">
+                <LayoutGrid className="h-4 w-4" strokeWidth={2.2} />
+              </span>
+              <h2 className="font-display text-base font-semibold tracking-tight text-zinc-100">
+                Tier List
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="badge border border-zinc-700 bg-zinc-800/60 text-zinc-400">
+                {tiers.length} tiers
+              </span>
+              <span className="hidden text-xs font-medium text-zinc-600 sm:inline">
+                {movies.length} films
+              </span>
+            </div>
           </div>
 
-          <div data-export-only className="hidden py-3 border-b border-zinc-800 bg-zinc-900">
-            <h1 className="text-center text-lg font-bold text-zinc-200 tracking-tight">Tierboxd</h1>
+          <div data-export-only className="hidden border-b border-zinc-800/70 bg-zinc-900/80 py-3">
+            <h1 className="text-center font-display text-xl font-semibold tracking-tight text-zinc-100">
+              Tierboxd
+            </h1>
           </div>
 
-          <div className="divide-y divide-zinc-800/50">
+          <div className="divide-y divide-zinc-800/60">
             {tiers.map((tier) => (
               <TierRow
                 key={tier.id}
@@ -139,14 +151,10 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
             ))}
           </div>
 
-          <div data-export-hide className="px-4 py-2 border-t border-zinc-800 bg-zinc-900/50">
-            <button
-              onClick={addTier}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300
-                         hover:bg-zinc-800 rounded-lg transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Tier
+          <div data-export-hide className="border-t border-zinc-800/70 bg-zinc-900/50 px-3 py-2">
+            <button onClick={addTier} className="btn btn-ghost px-2.5 py-1.5 text-xs">
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+              Add tier
             </button>
           </div>
         </div>
@@ -165,7 +173,7 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
 
       <DragOverlay dropAnimation={null}>
         {activeMovie ? (
-          <div className="w-[100px] opacity-90 scale-110 rotate-2 shadow-2xl">
+          <div className="w-[104px] opacity-90 scale-110 rotate-2 shadow-2xl">
             <MovieCard movie={activeMovie} />
           </div>
         ) : null}
