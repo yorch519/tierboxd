@@ -124,11 +124,12 @@ export default async function handler(
       'Content-Type',
       upstreamRes.headers.get('content-type') ?? 'application/json; charset=utf-8'
     );
+    const cacheable = !ownKey && upstreamRes.status === 200;
     res.setHeader(
       'Cache-Control',
-      ownKey
-        ? 'private, no-store'
-        : 'public, s-maxage=604800, stale-while-revalidate=86400'
+      cacheable
+        ? 'public, s-maxage=604800, stale-while-revalidate=86400'
+        : 'no-store'
     );
     res.end(body);
   } catch {
