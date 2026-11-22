@@ -2,7 +2,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { checkRateLimit } from './rateLimit';
 
 const TMDB_ORIGIN = 'https://api.themoviedb.org/3';
-const PATH_PREFIX = '/api/tmdb/';
 const ALLOWED_PATH = /^(?:search\/movie|search\/tv|movie\/\d+|tv\/\d+)$/;
 const TMDB_KEY_PATTERN = /^[a-f0-9]{32,64}$/i;
 
@@ -44,10 +43,8 @@ export async function handleTmdb(req: IncomingMessage, res: ServerResponse): Pro
   }
 
   const url = new URL(req.url ?? '/', 'http://localhost');
-  const rawPath = url.pathname.startsWith(PATH_PREFIX)
-    ? url.pathname.slice(PATH_PREFIX.length)
-    : '';
-  const path = rawPath.replace(/\/+$/, '');
+  const rawPath = url.searchParams.get('path') ?? '';
+  const path = rawPath.replace(/^\/+/, '').replace(/\/+$/, '');
 
   if (!ALLOWED_PATH.test(path)) {
     sendJson(res, 404, { error: 'Not found' });
@@ -75,7 +72,7 @@ export async function handleTmdb(req: IncomingMessage, res: ServerResponse): Pro
 
   const upstream = new URL(`${TMDB_ORIGIN}/${path}`);
   for (const [key, value] of url.searchParams) {
-    if (key === 'api_key') continue;
+    if (key === 'path' || key === 'api_key') continue;
     upstream.searchParams.append(key, value);
   }
   upstream.searchParams.set('api_key', apiKey);

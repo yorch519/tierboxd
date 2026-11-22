@@ -1,7 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const IMAGE_ORIGIN = 'https://image.tmdb.org';
-const PATH_PREFIX = '/api/image/';
 const ALLOWED_PATH = /^t\/p\/[a-zA-Z0-9_]+\/[A-Za-z0-9._-]+$/;
 
 export default async function handler(
@@ -15,9 +14,7 @@ export default async function handler(
   }
 
   const url = new URL(req.url ?? '/', 'http://localhost');
-  const path = url.pathname.startsWith(PATH_PREFIX)
-    ? url.pathname.slice(PATH_PREFIX.length)
-    : '';
+  const path = (url.searchParams.get('path') ?? '').replace(/^\/+/, '');
 
   if (!ALLOWED_PATH.test(path)) {
     res.statusCode = 404;

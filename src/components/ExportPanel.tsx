@@ -74,7 +74,8 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
         await Promise.all(
           batch.map(async (url) => {
             try {
-              const proxyUrl = url.replace(TMDB_IMAGE_ORIGIN, TMDB_IMAGE_PROXY);
+              const relativePath = url.replace(TMDB_IMAGE_ORIGIN, '').replace(/^\/+/, '');
+              const proxyUrl = `${TMDB_IMAGE_PROXY}?path=${encodeURIComponent(relativePath)}`;
               const dataUrl = await urlToDataUrl(proxyUrl);
               if (dataUrl) posterMap.set(url, dataUrl);
             } catch { /* skip */ }

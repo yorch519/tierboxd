@@ -10,26 +10,36 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api/tmdb': {
-          target: 'https://api.themoviedb.org/3',
+          target: 'https://api.themoviedb.org',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/tmdb/, ''),
           configure: (proxy) => {
             proxy.on('proxyReq', (proxyReq, req) => {
+              const incoming = new URL(req.url ?? '/', 'http://localhost')
+              const tmdbPath = (incoming.searchParams.get('path') ?? '').replace(/^\/+/, '')
               const header = req.headers['x-tmdb-key']
               const ownKey = Array.isArray(header) ? header[0] : header
               const key = ownKey || env.TMDB_API_KEY
-              if (!key) return
 
-              const target = new URL(proxyReq.path || '/', 'https://api.themoviedb.org/3')
-              target.searchParams.set('api_key', key)
-              proxyReq.path = `${target.pathname}${target.search}`
+              const upstream = new URL(`/3/${tmdbPath}`, 'https://api.themoviedb.org')
+              for (const [param, value] of incoming.searchParams) {
+                if (param === 'path' || param === 'api_key') continue
+                upstream.searchParams.append(param, value)
+              }
+              if (key) upstream.searchParams.set('api_key', key)
+              proxyReq.path = `${upstream.pathname}${upstream.search}`
             })
           },
         },
         '/api/image': {
           target: 'https://image.tmdb.org',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/image/, ''),
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq, req) => {
+              const incoming = new URL(req.url ?? '/', 'http://localhost')
+              const imagePath = (incoming.searchParams.get('path') ?? '').replace(/^\/+/, '')
+              proxyReq.path = `/${imagePath}`
+            })
+          },
         },
       },
     },

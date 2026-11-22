@@ -18,9 +18,11 @@ function tmdbFetch(
   params: URLSearchParams,
   apiKey?: string | null
 ): Promise<Response> {
-  const query = params.toString();
-  const url = `${TMDB_API_BASE}/${path}${query ? `?${query}` : ''}`;
-  return fetch(url, { headers: buildHeaders(apiKey) });
+  const search = new URLSearchParams(params);
+  search.set('path', path);
+  return fetch(`${TMDB_API_BASE}?${search.toString()}`, {
+    headers: buildHeaders(apiKey),
+  });
 }
 
 export async function searchMovie(
