@@ -282,6 +282,11 @@ export async function searchTitles(
       });
     }
 
+    // TMDB's year param is a soft filter, so enforce an exact year match here.
+    if (year) {
+      return results.filter((result) => result.year === year);
+    }
+
     return results;
   } catch {
     return [];

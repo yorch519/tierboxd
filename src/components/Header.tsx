@@ -11,73 +11,87 @@ export function Header() {
   const activeBoard = useActiveBoard();
 
   return (
-    <header className="flex items-center justify-between gap-3 px-6 py-3 border-b border-zinc-800 bg-zinc-950">
-      <button
-        onClick={() => setView('home')}
-        className="flex items-center gap-2 text-zinc-100 hover:text-orange-400 transition-colors shrink-0"
-      >
-        <Film className="w-6 h-6" />
-        <span className="font-bold text-lg tracking-tight">Tierboxd</span>
-      </button>
-
-      <div className="flex items-center gap-3 min-w-0">
-        {activeBoard && (
-          <button
-            onClick={() => setView('board')}
-            className={`max-w-[180px] truncate text-sm px-3 py-1.5 rounded-md transition-colors ${
-              view === 'board'
-                ? 'bg-orange-600 text-white'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
-            }`}
-            title={activeBoard.name}
-          >
-            {activeBoard.name}
-          </button>
-        )}
-
-        {tmdbKey ? (
-          <>
-            <span
-              className="text-[10px] text-zinc-500 font-mono cursor-pointer hover:text-zinc-300 transition-colors"
-              onClick={openKeyModal}
-              title="Using your own key — click to change"
-            >
-              <Key className="w-3 h-3 inline mr-1" />
-              Own key: {tmdbKey.slice(0, 4)}...{tmdbKey.slice(-4)}
-            </span>
-            <button
-              onClick={clearTmdbKey}
-              className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
-              title="Remove your key (use the shared proxy)"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
-          </>
-        ) : (
-          <button
-            onClick={openKeyModal}
-            className="text-[10px] text-zinc-600 hover:text-zinc-300 transition-colors"
-            title="Use your own TMDB key (optional)"
-          >
-            <Key className="w-3 h-3 inline mr-1" />
-            Use own key
-          </button>
-        )}
-
-        {activeBoard && (
-          <span className="text-xs text-zinc-600 hidden sm:inline">
-            {activeBoard.movies.length} films
+    <header className="sticky top-0 z-40 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-3">
+        <button onClick={() => setView('home')} className="group flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-accent-500/30 bg-gradient-to-br from-accent-500/25 to-accent-600/5 text-accent-400 shadow-[0_0_24px_-8px_rgba(230,165,60,0.65)]">
+            <Film className="h-5 w-5" strokeWidth={2.2} />
           </span>
-        )}
-
-        <button
-          onClick={() => {
-            if (confirm('Delete all tier lists? This cannot be undone.')) reset();
-          }}
-          className="text-xs text-zinc-600 hover:text-red-400 transition-colors"
-        >
-          Reset
+          <span className="flex flex-col leading-none">
+            <span className="font-display text-xl font-semibold tracking-tight text-zinc-100 transition-colors group-hover:text-accent-300">
+              Tierboxd
+            </span>
+            <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-600">
+              Movie tier lists
+            </span>
+          </span>
         </button>
+
+        <div className="flex items-center gap-2">
+          {activeBoard && (
+            <button
+              onClick={() => setView('board')}
+              title={activeBoard.name}
+              className={`flex max-w-[220px] items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                view === 'board'
+                  ? 'border-accent-500/40 bg-accent-500/10 text-accent-300'
+                  : 'border-zinc-800 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900'
+              }`}
+            >
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-400" />
+              <span className="truncate">{activeBoard.name}</span>
+            </button>
+          )}
+
+          {activeBoard && (
+            <span className="hidden text-xs font-medium text-zinc-600 sm:inline">
+              {activeBoard.movies.length} films
+            </span>
+          )}
+
+          <div className="mx-1 hidden h-5 w-px bg-zinc-800 sm:block" />
+
+          {tmdbKey ? (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={openKeyModal}
+                className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-medium text-zinc-500 transition-colors hover:text-zinc-300"
+                title="Using your own key — click to change"
+              >
+                <Key className="h-3.5 w-3.5" strokeWidth={2.2} />
+                <span className="font-mono">
+                  Own key · {tmdbKey.slice(0, 4)}…{tmdbKey.slice(-4)}
+                </span>
+              </button>
+              <button
+                onClick={clearTmdbKey}
+                className="icon-btn"
+                title="Remove your key (use the shared proxy)"
+              >
+                <LogOut className="h-4 w-4" strokeWidth={2.2} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={openKeyModal}
+              className="btn btn-ghost px-2.5 py-1.5 text-xs"
+              title="Use your own TMDB key (optional)"
+            >
+              <Key className="h-4 w-4" strokeWidth={2.2} />
+              Own key
+            </button>
+          )}
+
+          <button
+            onClick={() => {
+              if (confirm('Delete all tier lists? This cannot be undone.')) reset();
+            }}
+            className="btn btn-ghost px-2.5 py-1.5 text-xs hover:text-red-400"
+            title="Delete all lists"
+          >
+            Reset
+          </button>
+        </div>
       </div>
     </header>
   );

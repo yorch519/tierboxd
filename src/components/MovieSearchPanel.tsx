@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Search, Plus, Check, Loader2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Search, Plus, Check, Loader2, X } from 'lucide-react';
 import { useStore, useActiveBoard } from '../store/useStore';
 import { searchTitles, type TmdbResult } from '../lib/tmdb';
 import type { Movie } from '../types';
@@ -20,8 +20,15 @@ export function MovieSearchPanel() {
   const [results, setResults] = useState<TmdbResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const movies = board?.movies ?? EMPTY_MOVIES;
+
+  const yearNumber = Number(year);
+  const yearFilter =
+    Number.isFinite(yearNumber) && yearNumber >= 1888 && yearNumber <= 2100
+      ? yearNumber
+      : undefined;
 
   useEffect(() => {
     const text = query.trim();
@@ -33,12 +40,6 @@ export function MovieSearchPanel() {
     }
 
     const controller = new AbortController();
-    const yearNumber = Number(year);
-    const yearFilter =
-      Number.isFinite(yearNumber) && yearNumber >= 1888 && yearNumber <= 2100
-        ? yearNumber
-        : undefined;
-
     setLoading(true);
     const timer = setTimeout(async () => {
       const found = await searchTitles(text, yearFilter, tmdbKey, controller.signal);
@@ -52,7 +53,7 @@ export function MovieSearchPanel() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, year, tmdbKey]);
+  }, [query, yearFilter, tmdbKey]);
 
   const existing = useMemo(() => {
     const ids = new Set<string>();
@@ -84,56 +85,118 @@ export function MovieSearchPanel() {
     addMovie(movie);
   };
 
+  const clearQuery = () => {
+    setQuery('');
+    inputRef.current?.focus();
+  };
+
   return (
-    <div className="rounded-xl border border-zinc-800 overflow-hidden bg-zinc-900/50">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800 bg-zinc-900">
-        <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-          Add movies
-        </h2>
-        <span className="text-[10px] text-zinc-600">Search TMDB</span>
+    <div className="card overflow-hidden">
+      <div className="panel-header">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500/15 text-accent-400">
+            <Search className="h-4 w-4" strokeWidth={2.2} />
+          </span>
+          <h2 className="font-display text-base font-semibold tracking-tight text-zinc-100">
+            Add movies
+          </h2>
+        </div>
+        <span className="label-caps">Search TMDB</span>
       </div>
 
-      <div className="p-3 space-y-3">
+      <div className="space-y-3 p-4">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+              strokeWidth={2.2}
+            />
             <input
+              ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search TMDB to add a film or show..."
-              className="w-full pl-9 pr-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm
-                         placeholder:text-zinc-600 focus:outline-none focus:border-orange-500 transition-colors"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') clearQuery();
+              }}
+              placeholder="Search a film or show..."
+              className="input pl-9 pr-9"
             />
+            {query.length > 0 && (
+              <button
+                type="button"
+                onClick={clearQuery}
+                aria-label="Clear search"
+                title="Clear search"
+                className="icon-btn absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+              >
+                <X className="h-4 w-4" strokeWidth={2.2} />
+              </button>
+            )}
           </div>
-          <input
-            type="number"
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-            placeholder="Year"
-            min={1888}
-            max={2100}
-            className="w-20 px-2 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm text-center
-                       placeholder:text-zinc-600 focus:outline-none focus:border-orange-500 transition-colors"
-          />
+
+          <div className="relative">
+            <input
+              type="number"
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              placeholder="Year"
+              min={1888}
+              max={2100}
+              aria-label="Filter by year"
+              className="input w-24 pr-7 text-center"
+            />
+            {year.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setYear('')}
+                aria-label="Clear year"
+                title="Clear year"
+                className="icon-btn absolute right-0.5 top-1/2 h-6 w-6 -translate-y-1/2"
+              >
+                <X className="h-3.5 w-3.5" strokeWidth={2.4} />
+              </button>
+            )}
+          </div>
         </div>
+
+        {yearFilter && (
+          <span className="badge border border-accent-500/30 bg-accent-500/10 text-accent-300">
+            Year {yearFilter}
+          </span>
+        )}
 
         {loading && (
           <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            Searching...
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Searching…
+          </div>
+        )}
+
+        {loading && results.length === 0 && (
+          <div
+            className="grid gap-2"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))' }}
+          >
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="space-y-1.5">
+                <div className="aspect-[2/3] animate-pulse rounded-lg bg-zinc-800/80" />
+                <div className="h-2 w-3/4 animate-pulse rounded bg-zinc-800/80" />
+              </div>
+            ))}
           </div>
         )}
 
         {!loading && searched && results.length === 0 && (
-          <p className="text-xs text-zinc-600">
-            No results. Try another title or clear the year.
+          <p className="text-sm text-zinc-500">
+            No results{yearFilter ? ` for ${yearFilter}` : ''}. Try another title
+            {yearFilter ? ' or clear the year' : ''}.
           </p>
         )}
 
         {results.length > 0 && (
           <div
             className="grid gap-2"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))' }}
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))' }}
           >
             {results.map((result, index) => {
               const added = isAdded(result);
@@ -144,43 +207,45 @@ export function MovieSearchPanel() {
                   onClick={() => handleAdd(result)}
                   disabled={added}
                   title={added ? 'Already in this list' : `Add ${result.title}`}
-                  className="group relative flex flex-col items-center gap-1 p-1 rounded-lg transition-colors
-                             hover:bg-zinc-800 disabled:cursor-default"
+                  className="group relative flex flex-col gap-1.5 rounded-xl p-1 text-left transition-colors
+                             hover:bg-zinc-800/70 disabled:cursor-default"
                 >
-                  <div className="relative w-full">
+                  <div className="relative overflow-hidden rounded-lg border border-zinc-800/80">
                     {result.posterUrl ? (
                       <img
                         src={result.posterUrl}
                         alt={result.title}
-                        className="w-full aspect-[2/3] object-cover rounded bg-zinc-800"
+                        className="w-full aspect-[2/3] object-cover bg-zinc-800"
                         loading="lazy"
                         draggable={false}
                       />
                     ) : (
-                      <div className="w-full aspect-[2/3] bg-zinc-800 rounded flex items-center justify-center">
+                      <div className="w-full aspect-[2/3] bg-zinc-800 flex items-center justify-center">
                         <span className="text-[10px] text-zinc-600 text-center px-1 leading-tight">
                           {result.title}
                         </span>
                       </div>
                     )}
                     <div
-                      className={`absolute inset-0 rounded flex items-center justify-center transition-all
+                      className={`absolute inset-0 flex items-center justify-center transition-all
                         ${added
                           ? 'bg-black/60'
                           : 'bg-black/0 opacity-0 group-hover:opacity-100 group-hover:bg-black/50'
                         }`}
                     >
                       {added ? (
-                        <Check className="w-5 h-5 text-green-400" />
+                        <Check className="h-5 w-5 text-emerald-400" strokeWidth={2.4} />
                       ) : (
-                        <Plus className="w-5 h-5 text-white" />
+                        <Plus className="h-5 w-5 text-white" strokeWidth={2.4} />
                       )}
                     </div>
                   </div>
-                  <span className="text-[10px] text-zinc-400 text-center leading-tight line-clamp-2 w-full">
+                  <span className="line-clamp-2 px-0.5 text-[11px] font-medium leading-snug text-zinc-300">
                     {result.title}
                   </span>
-                  <span className="text-[9px] text-zinc-600">{result.year || '—'}</span>
+                  <span className="px-0.5 text-[10px] font-medium text-zinc-600">
+                    {result.year || '—'}
+                  </span>
                 </button>
               );
             })}
