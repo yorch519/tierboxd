@@ -13,6 +13,7 @@ import { Plus } from 'lucide-react';
 import { useStore, useActiveBoard } from '../store/useStore';
 import { TierRow } from './TierRow';
 import { MovieBank } from './MovieBank';
+import { MovieSearchPanel } from './MovieSearchPanel';
 import { MovieCard } from './MovieCard';
 import { StatsPanel } from './StatsPanel';
 import type { Movie, Tier, TierMovies } from '../types';
@@ -112,6 +113,8 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
       onDragEnd={handleDragEnd}
     >
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-4">
+        <MovieSearchPanel />
+
         <div id="tier-list-container" className="rounded-xl border border-zinc-800 overflow-hidden bg-zinc-900/50">
           <div data-export-hide className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800 bg-zinc-900">
             <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">

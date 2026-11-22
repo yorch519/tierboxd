@@ -197,6 +197,62 @@ export async function searchMovieCustom(
   }
 }
 
+export async function searchTitles(
+  query: string,
+  year?: number,
+  apiKey?: string | null,
+  signal?: AbortSignal
+): Promise<TmdbResult[]> {
+  const text = query.trim();
+  if (!text) return [];
+
+  try {
+    const movieParams = new URLSearchParams({ query: text });
+    if (year) movieParams.set('year', String(year));
+    const tvParams = new URLSearchParams({ query: text });
+    if (year) tvParams.set('first_air_date_year', String(year));
+
+    const [movieRes, tvRes] = await Promise.all([
+      tmdbFetch('search/movie', movieParams, apiKey, signal),
+      tmdbFetch('search/tv', tvParams, apiKey, signal),
+    ]);
+
+    const movieData = movieRes.ok ? await movieRes.json() : { results: [] };
+    const tvData = tvRes.ok ? await tvRes.json() : { results: [] };
+
+    const seen = new Set<string>();
+    const results: TmdbResult[] = [];
+
+    for (const m of movieData.results || []) {
+      const key = `movie-${m.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push({
+        tmdbId: String(m.id),
+        title: (m.title as string) || '',
+        year: m.release_date ? parseInt(String(m.release_date).slice(0, 4), 10) : 0,
+        posterUrl: m.poster_path ? `${TMDB_POSTER_BASE}${m.poster_path}` : null,
+      });
+    }
+
+    for (const t of tvData.results || []) {
+      const key = `tv-${t.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push({
+        tmdbId: String(t.id),
+        title: (t.name as string) || '',
+        year: t.first_air_date ? parseInt(String(t.first_air_date).slice(0, 4), 10) : 0,
+        posterUrl: t.poster_path ? `${TMDB_POSTER_BASE}${t.poster_path}` : null,
+      });
+    }
+
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchPoster(
   tmdbId: string,
   apiKey?: string | null,

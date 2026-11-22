@@ -370,7 +370,9 @@ export const useStore = create<AppState>((set, get) => {
       const exists = board.movies.some(
         (existing) =>
           (movie.tmdbId !== null && existing.tmdbId === movie.tmdbId) ||
-          existing.id === movie.id
+          existing.id === movie.id ||
+          (existing.title.trim().toLowerCase() === movie.title.trim().toLowerCase() &&
+            existing.year === movie.year)
       );
       if (exists) return false;
 
