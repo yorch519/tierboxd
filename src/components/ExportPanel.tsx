@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, AlertCircle, CheckCircle2, Image, BarChart3 } from 'lucide-react';
+import { Download, AlertCircle, CheckCircle2, Image, BarChart3, Loader2 } from 'lucide-react';
 import { useActiveBoard } from '../store/useStore';
 import { generateLetterboxdCSV, downloadCSV } from '../lib/csvExporter';
 import { TMDB_IMAGE_ORIGIN, TMDB_IMAGE_PROXY } from '../lib/constants';
@@ -206,117 +206,133 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 pb-8">
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-zinc-200">Export</h3>
-          <span className="text-[10px] text-zinc-500">
+    <div className="mx-auto max-w-7xl px-5 pb-10">
+      <div className="card overflow-hidden">
+        <div className="panel-header">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500/15 text-accent-400">
+              <Download className="h-4 w-4" strokeWidth={2.2} />
+            </span>
+            <h3 className="font-display text-base font-semibold tracking-tight text-zinc-100">
+              Export
+            </h3>
+          </div>
+          <span className="badge border border-zinc-700 bg-zinc-800/60 text-zinc-400">
             {assignedCount}/{movies.length} assigned
           </span>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div className="bg-zinc-800/50 rounded-lg py-2">
-            <div className="text-lg font-bold text-zinc-200">{movies.length}</div>
-            <div className="text-[10px] text-zinc-500">Total films</div>
+        <div className="space-y-4 p-5">
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 px-3 py-3">
+              <div className="font-display text-2xl font-semibold text-zinc-100">
+                {movies.length}
+              </div>
+              <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
+                Total films
+              </div>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 px-3 py-3">
+              <div className="font-display text-2xl font-semibold text-zinc-100">
+                {assignedCount}
+              </div>
+              <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
+                In tiers
+              </div>
+            </div>
+            <div className="rounded-xl border border-accent-500/25 bg-accent-500/[0.06] px-3 py-3">
+              <div className="font-display text-2xl font-semibold text-accent-300">
+                {changedCount}
+              </div>
+              <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
+                Ratings changed
+              </div>
+            </div>
           </div>
-          <div className="bg-zinc-800/50 rounded-lg py-2">
-            <div className="text-lg font-bold text-zinc-200">{assignedCount}</div>
-            <div className="text-[10px] text-zinc-500">In tiers</div>
-          </div>
-          <div className="bg-zinc-800/50 rounded-lg py-2">
-            <div className="text-lg font-bold text-orange-400">{changedCount}</div>
-            <div className="text-[10px] text-zinc-500">Ratings changed</div>
-          </div>
-        </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={handleSaveImage}
-            disabled={savingImage}
-            className="flex-1 flex items-center justify-center gap-2 py-2 bg-zinc-800 hover:bg-zinc-700
-                       text-zinc-200 text-sm font-medium rounded-lg transition-colors
-                       disabled:opacity-50 disabled:cursor-wait"
-          >
-            {savingImage ? (
+          <div className="flex gap-2">
+            <button
+              onClick={handleSaveImage}
+              disabled={savingImage}
+              className="btn btn-surface flex-1"
+            >
+              {savingImage ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.2} />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <Image className="h-4 w-4" strokeWidth={2.2} />
+                  Save as image
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={onToggleStats}
+              className={`btn flex-1 ${
+                statsVisible
+                  ? 'border border-accent-500/40 bg-accent-500/10 text-accent-300'
+                  : 'btn-surface'
+              }`}
+            >
+              <BarChart3 className="h-4 w-4" strokeWidth={2.2} />
+              {statsVisible ? 'Hide stats' : 'Show stats'}
+            </button>
+          </div>
+
+          {imageError && (
+            <div className="flex items-start gap-2 rounded-xl border border-red-400/20 bg-red-400/10 p-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" strokeWidth={2.2} />
+              <div>
+                <p className="text-xs font-medium text-red-300">{imageError}</p>
+                <p className="mt-1 text-[11px] text-zinc-500">
+                  Try refreshing the page. TMDB poster images must be cached with CORS enabled.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
+            <p className="text-xs leading-relaxed text-zinc-500">
+              Downloads a CSV file compatible with{' '}
+              <a
+                href="https://letterboxd.com/settings/import-data/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent-400 hover:underline"
+              >
+                Letterboxd's importer
+              </a>
+              . Includes rated films and films placed in a tier. Unassigned rated films keep
+              their original rating.
+            </p>
+          </div>
+
+          {hasUnassignedRated && (
+            <div className="flex items-start gap-2 rounded-xl border border-accent-500/20 bg-accent-500/10 p-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-accent-400" strokeWidth={2.2} />
+              <p className="text-xs text-accent-300">
+                Some rated films are still in the Movie Bank. They will keep their original rating.
+              </p>
+            </div>
+          )}
+
+          <button onClick={handleExport} className="btn btn-primary w-full py-2.5">
+            {copied ? (
               <>
-                <span className="w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
-                Saving...
+                <CheckCircle2 className="h-4 w-4" strokeWidth={2.4} />
+                Downloaded
               </>
             ) : (
               <>
-                <Image className="w-4 h-4" />
-                Save as Image
+                <Download className="h-4 w-4" strokeWidth={2.2} />
+                Download CSV for Letterboxd
               </>
             )}
           </button>
-
-          <button
-            onClick={onToggleStats}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-lg transition-colors
-                       ${statsVisible
-                         ? 'bg-orange-600/20 text-orange-300 border border-orange-500/30'
-                         : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200'
-                       }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            {statsVisible ? 'Hide Stats' : 'Show Stats'}
-          </button>
         </div>
-
-        {imageError && (
-          <div className="flex items-start gap-2 p-2.5 bg-red-400/10 border border-red-400/20 rounded-lg">
-            <AlertCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-[11px] text-red-300">{imageError}</p>
-              <p className="text-[10px] text-zinc-500 mt-1">
-                Try refreshing the page. TMDB poster images must be cached with CORS enabled.
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="p-3 bg-zinc-800/50 rounded-lg">
-          <p className="text-[11px] text-zinc-500 leading-relaxed">
-            Downloads a CSV file compatible with{' '}
-            <a
-              href="https://letterboxd.com/settings/import-data/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-orange-400 hover:underline"
-            >
-              Letterboxd's importer
-            </a>
-            . Only films with an original rating are included. Unassigned rated films keep their original rating.
-          </p>
-        </div>
-
-        {hasUnassignedRated && (
-          <div className="flex items-start gap-2 p-2.5 bg-amber-400/10 border border-amber-400/20 rounded-lg">
-            <AlertCircle className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
-            <p className="text-[11px] text-amber-300">
-              Some rated films are still in the Movie Bank. They will keep their original rating.
-            </p>
-          </div>
-        )}
-
-        <button
-          onClick={handleExport}
-          className="w-full flex items-center justify-center gap-2 py-2.5 bg-orange-600 hover:bg-orange-500
-                     text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          {copied ? (
-            <>
-              <CheckCircle2 className="w-4 h-4" />
-              Downloaded
-            </>
-          ) : (
-            <>
-              <Download className="w-4 h-4" />
-              Download CSV for Letterboxd
-            </>
-          )}
-        </button>
       </div>
     </div>
   );

@@ -190,15 +190,17 @@ export function DataImport() {
   if (status === 'parsing' || status === 'fetching') {
     const pct = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
     return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh] gap-6 px-4">
-        <Loader2 className="w-10 h-10 text-orange-400 animate-spin" />
-        <p className="text-zinc-300 text-sm">{message}</p>
+      <div className="mx-auto flex min-h-[70vh] max-w-xl flex-col items-center justify-center gap-6 px-5 py-10">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900 text-accent-400">
+          <Loader2 className="h-6 w-6 animate-spin" strokeWidth={2.2} />
+        </div>
+        <p className="text-sm font-medium text-zinc-300">{message}</p>
 
         {status === 'fetching' && (
           <>
-            <div className="w-64 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+            <div className="h-1.5 w-64 overflow-hidden rounded-full bg-zinc-800">
               <div
-                className="h-full bg-orange-500 rounded-full transition-all duration-300"
+                className="h-full rounded-full bg-accent-500 transition-all duration-300"
                 style={{ width: `${pct}%` }}
               />
             </div>
@@ -209,12 +211,8 @@ export function DataImport() {
           </>
         )}
 
-        <button
-          onClick={handleCancel}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400
-                     border border-zinc-700 rounded-lg hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
-        >
-          <X className="w-3.5 h-3.5" />
+        <button onClick={handleCancel} className="btn btn-surface text-xs">
+          <X className="h-3.5 w-3.5" strokeWidth={2.4} />
           Cancel
         </button>
       </div>
@@ -222,96 +220,105 @@ export function DataImport() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[70vh] gap-6 px-4">
-      <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold text-zinc-100">Import your Letterboxd data</h2>
-        <p className="text-sm text-zinc-500 max-w-md">
-          Export your data from Letterboxd (Settings &gt; Data &gt; Export) and drop the ZIP file here,
-          or upload individual CSV files.
+    <div className="mx-auto flex min-h-[70vh] max-w-2xl flex-col items-center justify-center gap-7 px-5 py-10">
+      <div className="text-center">
+        <span className="label-caps">Import</span>
+        <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-zinc-100">
+          Import your Letterboxd data
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-zinc-400">
+          Export your data from Letterboxd (Settings → Data → Export) and drop the ZIP here, or
+          upload individual CSV files.
         </p>
       </div>
 
-      <div className="flex flex-col items-center gap-3">
-        {hasActiveBoard && (
-          <div className="flex items-center gap-3 text-xs text-zinc-400">
-            <span className="text-zinc-500">Import to:</span>
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="radio"
-                name="import-target"
-                checked={target === 'new'}
-                onChange={() => setTarget('new')}
-                className="accent-orange-500"
-              />
-              New list
-            </label>
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="radio"
-                name="import-target"
-                checked={target === 'active'}
-                onChange={() => setTarget('active')}
-                className="accent-orange-500"
-              />
-              Current list
-            </label>
-          </div>
-        )}
+      <div className="card w-full max-w-md p-4">
+        <span className="label-caps mb-3 block">Options</span>
+        <div className="space-y-3">
+          {hasActiveBoard && (
+            <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400">
+              <span className="text-zinc-500">Import to</span>
+              <label className="flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="import-target"
+                  checked={target === 'new'}
+                  onChange={() => setTarget('new')}
+                  className="accent-accent-500"
+                />
+                New list
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="import-target"
+                  checked={target === 'active'}
+                  onChange={() => setTarget('active')}
+                  className="accent-accent-500"
+                />
+                Current list
+              </label>
+            </div>
+          )}
 
-        {hasActiveBoard && target === 'active' && existingCount > 0 && (
-          <div className="flex items-center gap-3 text-xs text-zinc-400">
-            <span className="text-zinc-500">Into current:</span>
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="radio"
-                name="import-mode"
-                checked={mode === 'merge'}
-                onChange={() => setMode('merge')}
-                className="accent-orange-500"
-              />
-              Merge
-            </label>
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="radio"
-                name="import-mode"
-                checked={mode === 'replace'}
-                onChange={() => setMode('replace')}
-                className="accent-orange-500"
-              />
-              Replace
-            </label>
-          </div>
-        )}
+          {hasActiveBoard && target === 'active' && existingCount > 0 && (
+            <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400">
+              <span className="text-zinc-500">Mode</span>
+              <label className="flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="import-mode"
+                  checked={mode === 'merge'}
+                  onChange={() => setMode('merge')}
+                  className="accent-accent-500"
+                />
+                Merge
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="import-mode"
+                  checked={mode === 'replace'}
+                  onChange={() => setMode('replace')}
+                  className="accent-accent-500"
+                />
+                Replace
+              </label>
+            </div>
+          )}
 
-        <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={seedFromRatings}
-            onChange={(e) => setSeedFromRatings(e.target.checked)}
-            className="accent-orange-500"
-          />
-          Pre-fill tiers from my ratings
-        </label>
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
+            <input
+              type="checkbox"
+              checked={seedFromRatings}
+              onChange={(e) => setSeedFromRatings(e.target.checked)}
+              className="accent-accent-500"
+            />
+            Pre-fill tiers from my ratings
+          </label>
+        </div>
       </div>
 
       <label
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
-        className="flex flex-col items-center gap-3 w-full max-w-md p-10 border-2 border-dashed
-                   border-zinc-700 rounded-xl bg-zinc-900/50 hover:border-orange-500/50
-                   hover:bg-zinc-900 transition-all cursor-pointer group"
+        className="group flex w-full max-w-md cursor-pointer flex-col items-center gap-3 rounded-2xl
+                   border-2 border-dashed border-zinc-700 bg-zinc-900/40 p-10 transition-colors
+                   hover:border-accent-500/50 hover:bg-zinc-900"
       >
-        <div className="w-14 h-14 rounded-full bg-zinc-800 flex items-center justify-center
-                        group-hover:bg-orange-600/20 transition-colors">
-          <Upload className="w-6 h-6 text-zinc-500 group-hover:text-orange-400 transition-colors" />
-        </div>
-        <p className="text-sm text-zinc-400">
-          <span className="text-orange-400 font-medium">Click to upload</span> or drag and drop
+        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-800 text-zinc-500 transition-colors group-hover:bg-accent-500/15 group-hover:text-accent-400">
+          <Upload className="h-6 w-6" strokeWidth={2} />
+        </span>
+        <p className="text-sm text-zinc-300">
+          <span className="font-semibold text-accent-400">Click to upload</span> or drag and drop
         </p>
-        <div className="flex gap-2 text-xs text-zinc-600">
-          <span className="flex items-center gap-1"><FileArchive className="w-3 h-3" /> .zip</span>
-          <span className="flex items-center gap-1"><FileText className="w-3 h-3" /> .csv</span>
+        <div className="flex gap-2">
+          <span className="badge border border-zinc-700 bg-zinc-800/60 text-zinc-500">
+            <FileArchive className="h-3 w-3" /> ZIP
+          </span>
+          <span className="badge border border-zinc-700 bg-zinc-800/60 text-zinc-500">
+            <FileText className="h-3 w-3" /> CSV
+          </span>
         </div>
         <input
           type="file"
@@ -323,36 +330,45 @@ export function DataImport() {
       </label>
 
       {status === 'done' && (
-        <div className="flex items-center gap-2 text-green-400 text-sm">
-          <CheckCircle2 className="w-4 h-4" />
+        <div className="flex items-center gap-2 text-sm text-emerald-400">
+          <CheckCircle2 className="h-4 w-4" strokeWidth={2.2} />
           {message}
         </div>
       )}
 
       {status === 'idle' && message && (
-        <div className="flex items-center gap-2 text-amber-400 text-sm">
-          <AlertCircle className="w-4 h-4" />
+        <div className="flex items-center gap-2 text-sm text-accent-300">
+          <AlertCircle className="h-4 w-4" strokeWidth={2.2} />
           {message}
         </div>
       )}
 
       {status === 'error' && (
-        <div className="flex items-center gap-2 text-red-400 text-sm">
-          <AlertCircle className="w-4 h-4" />
+        <div className="flex items-center gap-2 text-sm text-red-400">
+          <AlertCircle className="h-4 w-4" strokeWidth={2.2} />
           {message}
         </div>
       )}
 
-      <div className="mt-4 p-4 bg-zinc-900 border border-zinc-800 rounded-lg max-w-md">
-        <p className="text-xs text-zinc-500 leading-relaxed">
-          <strong className="text-zinc-400">How to export from Letterboxd:</strong><br />
-          1. Go to{' '}
-          <a href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener noreferrer"
-             className="text-orange-400 hover:underline">Settings &gt; Data</a>
-          <br />
-          2. Click <strong>Export Your Data</strong><br />
-          3. Drop the downloaded ZIP file here
-        </p>
+      <div className="card w-full max-w-md p-4">
+        <span className="label-caps mb-2 block">How to export from Letterboxd</span>
+        <ol className="space-y-1 text-xs leading-relaxed text-zinc-500">
+          <li>
+            1. Go to{' '}
+            <a
+              href="https://letterboxd.com/settings/data/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-400 hover:underline"
+            >
+              Settings → Data
+            </a>
+          </li>
+          <li>
+            2. Click <strong className="font-semibold text-zinc-300">Export Your Data</strong>
+          </li>
+          <li>3. Drop the downloaded ZIP here</li>
+        </ol>
       </div>
     </div>
   );

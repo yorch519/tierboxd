@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { LayoutTemplate, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TIER_TEMPLATES, TIER_TEMPLATE_ORDER } from '../lib/tierTemplates';
 import type { TierTemplateId } from '../types';
@@ -23,42 +23,41 @@ export function CreateBoardModal({ onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
-      <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-100">New tier list</h2>
-            <p className="text-xs text-zinc-500">Pick a name and a tier layout</p>
+      <div className="card w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="panel-header">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-500/15 text-accent-400">
+              <LayoutTemplate className="h-5 w-5" strokeWidth={2} />
+            </span>
+            <div>
+              <h2 className="font-display text-lg font-semibold tracking-tight text-zinc-100">
+                New tier list
+              </h2>
+              <p className="text-xs text-zinc-500">Pick a name and a tier layout</p>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
-          >
-            <X className="w-4 h-4" />
+          <button onClick={onClose} className="icon-btn" aria-label="Close">
+            <X className="h-4 w-4" strokeWidth={2.2} />
           </button>
         </div>
 
-        <form onSubmit={handleCreate} className="space-y-5">
+        <form onSubmit={handleCreate} className="space-y-5 p-5">
           <div>
-            <label className="block text-sm text-zinc-400 mb-1.5">List name</label>
+            <label className="label-caps mb-1.5 block">List name</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Best of 2026"
               autoFocus
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm
-                         placeholder:text-zinc-600 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500
-                         transition-colors"
+              className="input"
             />
           </div>
 
           <div>
-            <label className="block text-sm text-zinc-400 mb-2">Tiers</label>
+            <span className="label-caps mb-2 block">Tiers</span>
             <div className="grid gap-2">
               {TIER_TEMPLATE_ORDER.map((id) => {
                 const templateInfo = TIER_TEMPLATES[id];
@@ -68,21 +67,23 @@ export function CreateBoardModal({ onClose }: Props) {
                     type="button"
                     key={id}
                     onClick={() => setTemplate(id)}
-                    className={`flex items-center justify-between gap-3 p-3 rounded-lg border text-left transition-colors
-                      ${active
-                        ? 'border-orange-500 bg-orange-600/10'
-                        : 'border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800/50'
-                      }`}
+                    className={`flex items-center justify-between gap-3 rounded-xl border p-3 text-left transition-colors ${
+                      active
+                        ? 'border-accent-500/60 bg-accent-500/10'
+                        : 'border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/50'
+                    }`}
                   >
                     <div>
-                      <div className="text-sm text-zinc-200">{templateInfo.label}</div>
+                      <div className="text-sm font-semibold text-zinc-100">
+                        {templateInfo.label}
+                      </div>
                       <div className="text-[11px] text-zinc-500">{templateInfo.description}</div>
                     </div>
                     <div className="flex gap-0.5">
                       {templateInfo.tiers.slice(0, 6).map((tier) => (
                         <span
                           key={tier.id}
-                          className="w-3 h-6 rounded-sm"
+                          className="h-6 w-3 rounded-sm"
                           style={{ backgroundColor: tier.color }}
                         />
                       ))}
@@ -93,12 +94,7 @@ export function CreateBoardModal({ onClose }: Props) {
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="w-full py-2 bg-orange-600 hover:bg-orange-500 text-white text-sm font-medium rounded-lg
-                       transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2
-                       focus:ring-offset-zinc-900"
-          >
+          <button type="submit" className="btn btn-primary w-full">
             Create list
           </button>
         </form>

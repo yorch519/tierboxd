@@ -29,74 +29,64 @@ export function TmdbKeyModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
       onClick={closeKeyModal}
     >
-      <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl p-8 w-full max-w-md mx-4 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between mb-6">
+      <div className="card w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="panel-header">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-orange-600/20 flex items-center justify-center">
-              <Key className="w-5 h-5 text-orange-400" />
-            </div>
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-500/15 text-accent-400">
+              <Key className="h-5 w-5" strokeWidth={2} />
+            </span>
             <div>
-              <h2 className="text-lg font-semibold text-zinc-100">Use your own TMDB key</h2>
+              <h2 className="font-display text-lg font-semibold tracking-tight text-zinc-100">
+                Use your own TMDB key
+              </h2>
               <p className="text-xs text-zinc-500">Optional — not required to use Tierboxd</p>
             </div>
           </div>
-          <button
-            onClick={closeKeyModal}
-            className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
-          >
-            <X className="w-4 h-4" />
+          <button onClick={closeKeyModal} className="icon-btn" aria-label="Close">
+            <X className="h-4 w-4" strokeWidth={2.2} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 p-5">
           <div>
-            <label className="block text-sm text-zinc-400 mb-1.5">
-              Paste your TMDB API key (v3 auth)
-            </label>
+            <label className="label-caps mb-1.5 block">TMDB API key (v3 auth)</label>
             <input
               type="password"
               value={input}
-              onChange={(e) => { setInput(e.target.value); setError(''); }}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setError('');
+              }}
               placeholder="e.g. a1b2c3d4e5f6..."
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm
-                         placeholder:text-zinc-600 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500
-                         transition-colors"
               autoFocus
+              className="input"
             />
             {error && (
-              <p className="mt-1 text-xs text-red-400 flex items-center gap-1">
-                <X className="w-3 h-3" />
+              <p className="mt-1.5 flex items-center gap-1 text-xs text-red-400">
+                <X className="h-3 w-3" strokeWidth={2.4} />
                 {error}
               </p>
             )}
           </div>
 
-          <button
-            type="submit"
-            className="w-full py-2 bg-orange-600 hover:bg-orange-500 text-white text-sm font-medium rounded-lg
-                       transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2
-                       focus:ring-offset-zinc-900"
-          >
-            Save Key
+          <button type="submit" className="btn btn-primary w-full">
+            Save key
           </button>
         </form>
 
-        <div className="mt-5 pt-4 border-t border-zinc-800">
-          <p className="text-xs text-zinc-500 leading-relaxed">
-            By default Tierboxd uses a shared proxy, so you don't need a key. If you'd rather
-            avoid the shared rate limit, add your own key — it stays in your browser and is only
-            sent to TMDB through the proxy.{' '}
+        <div className="border-t border-zinc-800 p-5 pt-4">
+          <p className="text-xs leading-relaxed text-zinc-500">
+            By default Tierboxd uses a shared proxy, so you don't need a key. Add your own to
+            avoid the shared rate limit — it stays in your browser and is only sent to TMDB
+            through the proxy.{' '}
             <a
               href="https://www.themoviedb.org/settings/api"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-orange-400 hover:text-orange-300 underline underline-offset-2"
+              className="text-accent-400 hover:underline"
             >
               Get one free at themoviedb.org
             </a>

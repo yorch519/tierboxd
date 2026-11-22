@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { BarChart3, X } from 'lucide-react';
 import type { Tier } from '../types';
 
 interface Props {
@@ -13,22 +13,28 @@ export function StatsPanel({ tiers, tierMovieIds, totalMovies, onClose }: Props)
     ...tiers.map((t) => (tierMovieIds[t.id] ?? []).length),
     1
   );
+  const assigned = tiers.reduce(
+    (sum, tier) => sum + (tierMovieIds[tier.id] ?? []).length,
+    0
+  );
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800 bg-zinc-900">
-        <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-          Rating Distribution
-        </h2>
-        <button
-          onClick={onClose}
-          className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
-        >
-          <X className="w-3.5 h-3.5" />
+    <div className="card overflow-hidden">
+      <div className="panel-header">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500/15 text-accent-400">
+            <BarChart3 className="h-4 w-4" strokeWidth={2.2} />
+          </span>
+          <h2 className="font-display text-base font-semibold tracking-tight text-zinc-100">
+            Rating distribution
+          </h2>
+        </div>
+        <button onClick={onClose} className="icon-btn" aria-label="Close stats">
+          <X className="h-4 w-4" strokeWidth={2.2} />
         </button>
       </div>
 
-      <div className="p-4 space-y-2">
+      <div className="space-y-2.5 p-5">
         {tiers.map((tier) => {
           const count = (tierMovieIds[tier.id] ?? []).length;
           const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
@@ -36,35 +42,32 @@ export function StatsPanel({ tiers, tierMovieIds, totalMovies, onClose }: Props)
           return (
             <div key={tier.id} className="flex items-center gap-3">
               <span
-                className="w-16 text-right text-xs font-bold flex-shrink-0"
+                className="w-20 shrink-0 truncate text-right font-display text-sm font-semibold"
                 style={{ color: tier.color }}
+                title={tier.name}
               >
                 {tier.name}
               </span>
-              <div className="flex-1 h-5 bg-zinc-800/50 rounded-sm overflow-hidden">
+              <div className="h-5 flex-1 overflow-hidden rounded-md bg-zinc-800/50">
                 <div
-                  className="h-full rounded-sm transition-all duration-500"
+                  className="h-full rounded-md transition-all duration-500"
                   style={{
                     width: `${pct}%`,
                     backgroundColor: tier.color,
-                    opacity: 0.85,
+                    opacity: 0.9,
                   }}
                 />
               </div>
-              <span className="w-8 text-right text-xs text-zinc-400 flex-shrink-0">
+              <span className="w-8 shrink-0 text-right text-xs font-semibold text-zinc-400">
                 {count}
               </span>
             </div>
           );
         })}
 
-        <div className="pt-2 mt-2 border-t border-zinc-800 flex justify-between">
-          <span className="text-[10px] text-zinc-600">
-            Assigned: {tiers.reduce((sum, t) => sum + (tierMovieIds[t.id] ?? []).length, 0)}
-          </span>
-          <span className="text-[10px] text-zinc-600">
-            Total: {totalMovies} films
-          </span>
+        <div className="mt-2 flex justify-between border-t border-zinc-800 pt-3">
+          <span className="label-caps">Assigned · {assigned}</span>
+          <span className="label-caps">Total · {totalMovies}</span>
         </div>
       </div>
     </div>

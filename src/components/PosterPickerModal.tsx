@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Search } from 'lucide-react';
+import { Image as ImageIcon, Loader2, Search, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { searchMovieCustom, fetchPoster, type TmdbResult } from '../lib/tmdb';
 import type { Movie } from '../types';
@@ -29,7 +29,9 @@ export function PosterPickerModal({ movie, onClose }: Props) {
       setResults(r);
       setLoading(false);
     }, 400);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, [query, tmdbKey]);
 
   const handleSelect = async (result: TmdbResult) => {
@@ -42,52 +44,121 @@ export function PosterPickerModal({ movie, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-zinc-200 truncate mr-2">Change poster: {movie.title}</h2>
-          <button onClick={onClose} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors">
-            <X className="w-4 h-4" />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="card flex max-h-[80vh] w-full max-w-lg flex-col shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="panel-header shrink-0">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accent-400">
+              <ImageIcon className="h-5 w-5" strokeWidth={2} />
+            </span>
+            <div className="min-w-0">
+              <h2 className="font-display text-lg font-semibold tracking-tight text-zinc-100">
+                Change poster
+              </h2>
+              <p className="truncate text-xs text-zinc-500">{movie.title}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="icon-btn" aria-label="Close">
+            <X className="h-4 w-4" strokeWidth={2.2} />
           </button>
         </div>
 
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search TMDB..."
-            className="w-full pl-9 pr-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 text-sm
-                       placeholder:text-zinc-600 focus:outline-none focus:border-orange-500 transition-colors"
-          />
+        <div className="p-5 pb-0">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+              strokeWidth={2.2}
+            />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search TMDB..."
+              className="input pl-9 pr-9"
+            />
+            {query.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Clear search"
+                title="Clear search"
+                className="icon-btn absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+              >
+                <X className="h-4 w-4" strokeWidth={2.2} />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-5">
           {loading && results.length === 0 && (
-            <p className="text-xs text-zinc-500 text-center py-8">Searching...</p>
+            <div className="flex items-center justify-center gap-2 py-10 text-xs text-zinc-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Searching…
+            </div>
           )}
+
           {!loading && results.length === 0 && query.trim() && (
-            <p className="text-xs text-zinc-500 text-center py-8">No results found</p>
+            <p className="py-10 text-center text-sm text-zinc-500">No results found.</p>
           )}
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))' }}>
-            {results.map((r) => (
-              <button
-                key={r.tmdbId}
-                onClick={() => handleSelect(r)}
-                disabled={selected !== null}
-                className="flex flex-col items-center gap-1 p-1 rounded-lg hover:bg-zinc-800 transition-colors
-                           disabled:opacity-50 text-left"
-              >
-                {r.posterUrl ? (
-                  <img src={r.posterUrl} alt={r.title} className="w-full aspect-[2/3] object-cover rounded bg-zinc-800" />
-                ) : (
-                  <div className="w-full aspect-[2/3] bg-zinc-800 rounded flex items-center justify-center">
-                    <span className="text-[10px] text-zinc-600 text-center px-1">{r.title}</span>
+
+          <div
+            className="grid gap-2"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))' }}
+          >
+            {results.map((result) => {
+              const isSelected = selected === result.tmdbId;
+              return (
+                <button
+                  key={result.tmdbId}
+                  onClick={() => handleSelect(result)}
+                  disabled={selected !== null}
+                  className="group relative flex flex-col gap-1.5 rounded-xl p-1 text-left transition-colors
+                             hover:bg-zinc-800/70 disabled:cursor-default"
+                >
+                  <div className="relative overflow-hidden rounded-lg border border-zinc-800/80">
+                    {result.posterUrl ? (
+                      <img
+                        src={result.posterUrl}
+                        alt={result.title}
+                        className="aspect-[2/3] w-full bg-zinc-800 object-cover"
+                        loading="lazy"
+                        draggable={false}
+                      />
+                    ) : (
+                      <div className="flex aspect-[2/3] w-full items-center justify-center bg-zinc-800">
+                        <span className="px-1 text-center text-[10px] text-zinc-600">
+                          {result.title}
+                        </span>
+                      </div>
+                    )}
+                    <div
+                      className={`absolute inset-0 flex items-center justify-center transition-all ${
+                        isSelected
+                          ? 'bg-black/60'
+                          : 'bg-black/0 opacity-0 group-hover:bg-black/50 group-hover:opacity-100'
+                      }`}
+                    >
+                      {isSelected ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-accent-300" />
+                      ) : (
+                        <span className="rounded-full bg-accent-500 px-2 py-0.5 text-[10px] font-semibold text-zinc-950">
+                          Use
+                        </span>
+                      )}
+                    </div>
                   </div>
-                )}
-                <span className="text-[9px] text-zinc-400 text-center leading-tight line-clamp-2">{r.title}</span>
-              </button>
-            ))}
+                  <span className="line-clamp-2 px-0.5 text-[11px] font-medium leading-snug text-zinc-300">
+                    {result.title}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
