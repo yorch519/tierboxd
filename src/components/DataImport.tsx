@@ -3,7 +3,7 @@ import { Upload, FileArchive, FileText, Loader2, CheckCircle2, AlertCircle } fro
 import JSZip from 'jszip';
 import { useStore } from '../store/useStore';
 import { extractMovies } from '../lib/csvParser';
-import { searchMovie } from '../lib/tmdb';
+import { searchMovie, fetchPoster } from '../lib/tmdb';
 
 export function DataImport() {
   const setMovies = useStore((s) => s.setMovies);
@@ -49,12 +49,6 @@ export function DataImport() {
       setMovies(movies);
       setMessage(`Found ${movies.length} movies. Fetching posters...`);
 
-      if (!tmdbKey) {
-        setStatus('done');
-        setView('board');
-        return;
-      }
-
       setStatus('fetching');
       setLoadingPosters(true);
 
@@ -68,9 +62,14 @@ export function DataImport() {
         await Promise.all(
           batch.map(async (movie) => {
             try {
-              const result = await searchMovie(movie.title, movie.year, tmdbKey);
-              if (result) {
-                setPosterForMovie(movie.id, result.posterUrl);
+              if (movie.tmdbId) {
+                const posterUrl = await fetchPoster(movie.tmdbId, tmdbKey);
+                if (posterUrl) setPosterForMovie(movie.id, posterUrl);
+              } else {
+                const result = await searchMovie(movie.title, movie.year, tmdbKey);
+                if (result) {
+                  setPosterForMovie(movie.id, result.posterUrl);
+                }
               }
             } catch { /* skip */ }
           })

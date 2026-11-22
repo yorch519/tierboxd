@@ -19,4 +19,7 @@ export const LS_KEYS = {
 } as const;
 
 export const TMDB_POSTER_BASE = 'https://image.tmdb.org/t/p/w342';
-export const TMDB_API_BASE = 'https://api.themoviedb.org/3';
+export const TMDB_IMAGE_ORIGIN = 'https://image.tmdb.org';
+export const TMDB_IMAGE_PROXY = '/api/image';
+export const TMDB_API_BASE = '/api/tmdb';
+export const TMDB_KEY_HEADER = 'x-tmdb-key';

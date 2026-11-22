@@ -81,7 +81,7 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
               {tier.name}
             </span>
             <span className="text-[10px] text-zinc-600">{movies.length} films</span>
-            <div className="flex gap-0.5 mt-1">
+            <div data-export-hide className="flex gap-0.5 mt-1">
               <button
                 onClick={() => {
                   setName(tier.name);

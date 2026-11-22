@@ -62,6 +62,7 @@ export function extractMovies(
       year: raw.year,
       originalRating: raw.rating,
       posterUrl: null,
+      tmdbId: null,
     });
   }
 

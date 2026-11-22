@@ -2,6 +2,23 @@ import { useState } from 'react';
 import { Download, AlertCircle, CheckCircle2, Image, BarChart3 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { generateLetterboxdCSV, downloadCSV } from '../lib/csvExporter';
+import { TMDB_IMAGE_ORIGIN, TMDB_IMAGE_PROXY } from '../lib/constants';
+
+async function urlToDataUrl(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
 
 interface Props {
   onToggleStats: () => void;
@@ -14,6 +31,7 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
   const tierMovies = useStore((s) => s.tierMovies);
   const [copied, setCopied] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   if (movies.length === 0) return null;
 
@@ -42,22 +60,122 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
     if (!el) return;
 
     setSavingImage(true);
+    setImageError(null);
 
-    const { default: html2canvas } = await import('html2canvas');
+    try {
+      const { default: html2canvas } = await import('html2canvas');
 
-    const canvas = await html2canvas(el, {
-      backgroundColor: '#0a0a0b',
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-    });
+      const posterMap = new Map<string, string>();
+      const posterUrls = [...new Set(movies.filter((m) => m.posterUrl).map((m) => m.posterUrl!))];
 
-    const link = document.createElement('a');
-    link.download = 'tierboxd.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+      const batchSize = 3;
+      for (let i = 0; i < posterUrls.length; i += batchSize) {
+        const batch = posterUrls.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map(async (url) => {
+            try {
+              const proxyUrl = url.replace(TMDB_IMAGE_ORIGIN, TMDB_IMAGE_PROXY);
+              const dataUrl = await urlToDataUrl(proxyUrl);
+              if (dataUrl) posterMap.set(url, dataUrl);
+            } catch { /* skip */ }
+          })
+        );
+        if (i + batchSize < posterUrls.length) {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      }
 
-    setSavingImage(false);
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.left = '-9999px';
+      iframe.style.top = '0';
+      iframe.style.width = el.offsetWidth + 'px';
+      iframe.style.height = el.offsetHeight + 'px';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDoc) {
+        document.body.removeChild(iframe);
+        throw new Error('Could not access iframe document');
+      }
+
+      const walk = (source: Element, target: Element) => {
+        const srcHtml = source as HTMLElement;
+        const tgtHtml = target as HTMLElement;
+
+        if (srcHtml.style && tgtHtml.style) {
+          const computed = window.getComputedStyle(srcHtml);
+          const parts: string[] = [];
+          for (let i = 0; i < computed.length; i++) {
+            const key = computed[i];
+            if (key.startsWith('--')) continue;
+            let val = computed.getPropertyValue(key);
+            if (/\boklch\b|\boklab\b/i.test(val)) {
+              val = val.replace(/\boklch\b|\boklab\b/gi, 'srgb');
+            }
+            parts.push(`${key}: ${val}`);
+          }
+          tgtHtml.style.cssText = parts.join('; ');
+        }
+
+        if (tgtHtml.hasAttribute('data-export-hide')) {
+          tgtHtml.style.display = 'none';
+        }
+
+        if (tgtHtml.hasAttribute('data-export-only')) {
+          tgtHtml.removeAttribute('data-export-only');
+          if (tgtHtml.style.display === 'none') {
+            tgtHtml.style.display = 'block';
+          }
+        }
+
+        if (tgtHtml.tagName === 'IMG') {
+          const src = tgtHtml.getAttribute('src');
+          if (src && posterMap.has(src)) {
+            tgtHtml.setAttribute('src', posterMap.get(src)!);
+          } else {
+            tgtHtml.style.display = 'none';
+          }
+        }
+        const srcChildren = source.children;
+        const tgtChildren = target.children;
+        for (let i = 0; i < srcChildren.length && i < tgtChildren.length; i++) {
+          walk(srcChildren[i], tgtChildren[i]);
+        }
+      };
+
+      const clone = el.cloneNode(true) as HTMLElement;
+      walk(el, clone);
+      iframeDoc.body.appendChild(clone);
+
+      const canvas = await html2canvas(clone, {
+        backgroundColor: '#0a0a0b',
+        scale: 2,
+        imageTimeout: 0,
+      });
+
+      document.body.removeChild(iframe);
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/png')
+      );
+
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = 'tierboxd.png';
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      setImageError(err instanceof Error ? err.message : 'Failed to capture image');
+    } finally {
+      setSavingImage(false);
+    }
   };
 
   return (
@@ -118,6 +236,18 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
             {statsVisible ? 'Hide Stats' : 'Show Stats'}
           </button>
         </div>
+
+        {imageError && (
+          <div className="flex items-start gap-2 p-2.5 bg-red-400/10 border border-red-400/20 rounded-lg">
+            <AlertCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-[11px] text-red-300">{imageError}</p>
+              <p className="text-[10px] text-zinc-500 mt-1">
+                Try refreshing the page. TMDB poster images must be cached with CORS enabled.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="p-3 bg-zinc-800/50 rounded-lg">
           <p className="text-[11px] text-zinc-500 leading-relaxed">

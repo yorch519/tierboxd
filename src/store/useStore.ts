@@ -9,11 +9,15 @@ interface AppState {
   tmdbKey: string | null;
   view: AppView;
   isLoadingPosters: boolean;
+  keyModalOpen: boolean;
 
   setTmdbKey: (key: string) => void;
   clearTmdbKey: () => void;
+  openKeyModal: () => void;
+  closeKeyModal: () => void;
   setMovies: (movies: Movie[]) => void;
   setPosterForMovie: (id: string, posterUrl: string | null) => void;
+  setMovieTmdbId: (id: string, tmdbId: string) => void;
   setLoadingPosters: (loading: boolean) => void;
   moveMovie: (movieId: string, toTierId: string | null) => void;
   insertMovie: (movieId: string, tierId: string, beforeMovieId?: string) => void;
@@ -53,6 +57,7 @@ export const useStore = create<AppState>((set, get) => ({
   tmdbKey: localStorage.getItem(LS_KEYS.TMDB_KEY) ?? null,
   view: (saved?.view as AppView) ?? 'import',
   isLoadingPosters: false,
+  keyModalOpen: false,
 
   setTmdbKey: (key) => {
     localStorage.setItem(LS_KEYS.TMDB_KEY, key);
@@ -64,6 +69,9 @@ export const useStore = create<AppState>((set, get) => ({
     set({ tmdbKey: null });
   },
 
+  openKeyModal: () => set({ keyModalOpen: true }),
+  closeKeyModal: () => set({ keyModalOpen: false }),
+
   setMovies: (movies) => {
     set({ movies });
     saveState({ ...get(), movies });
@@ -72,6 +80,13 @@ export const useStore = create<AppState>((set, get) => ({
   setPosterForMovie: (id, posterUrl) => {
     const { movies } = get();
     const updated = movies.map((m) => (m.id === id ? { ...m, posterUrl } : m));
+    set({ movies: updated });
+    saveState({ ...get(), movies: updated });
+  },
+
+  setMovieTmdbId: (id, tmdbId) => {
+    const { movies } = get();
+    const updated = movies.map((m) => (m.id === id ? { ...m, tmdbId } : m));
     set({ movies: updated });
     saveState({ ...get(), movies: updated });
   },

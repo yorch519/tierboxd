@@ -95,13 +95,17 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
     >
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-4">
         <div id="tier-list-container" className="rounded-xl border border-zinc-800 overflow-hidden bg-zinc-900/50">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800 bg-zinc-900">
+          <div data-export-hide className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800 bg-zinc-900">
             <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
               Tier List
             </h2>
             <span className="text-[10px] text-zinc-600">
               {tiers.length} tiers
             </span>
+          </div>
+
+          <div data-export-only className="hidden py-3 border-b border-zinc-800 bg-zinc-900">
+            <h1 className="text-center text-lg font-bold text-zinc-200 tracking-tight">Tierboxd</h1>
           </div>
 
           <div className="divide-y divide-zinc-800/50">
@@ -114,7 +118,7 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
             ))}
           </div>
 
-          <div className="px-4 py-2 border-t border-zinc-800 bg-zinc-900/50">
+          <div data-export-hide className="px-4 py-2 border-t border-zinc-800 bg-zinc-900/50">
             <button
               onClick={addTier}
               className="flex items-center gap-2 px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300

@@ -4,6 +4,7 @@ export interface Movie {
   year: number;
   originalRating: number | null;
   posterUrl: string | null;
+  tmdbId: string | null;
 }
 
 export interface Tier {

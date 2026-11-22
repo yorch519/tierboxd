@@ -8,6 +8,7 @@ export function Header() {
   const reset = useStore((s) => s.reset);
   const tmdbKey = useStore((s) => s.tmdbKey);
   const clearTmdbKey = useStore((s) => s.clearTmdbKey);
+  const openKeyModal = useStore((s) => s.openKeyModal);
 
   return (
     <header className="flex items-center justify-between px-6 py-3 border-b border-zinc-800 bg-zinc-950">
@@ -24,25 +25,32 @@ export function Header() {
           <>
             <span
               className="text-[10px] text-zinc-500 font-mono cursor-pointer hover:text-zinc-300 transition-colors"
-              onClick={() => clearTmdbKey()}
-              title="Click to change TMDB key"
+              onClick={openKeyModal}
+              title="Using your own key — click to change"
             >
               <Key className="w-3 h-3 inline mr-1" />
-              {tmdbKey.slice(0, 4)}...{tmdbKey.slice(-4)}
+              Own key: {tmdbKey.slice(0, 4)}...{tmdbKey.slice(-4)}
             </span>
             <button
-              onClick={() => clearTmdbKey()}
+              onClick={clearTmdbKey}
               className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
-              title="Change TMDB key"
+              title="Remove your key (use the shared proxy)"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>
           </>
         ) : (
-          <span className="text-[10px] text-zinc-600">No TMDB key</span>
+          <button
+            onClick={openKeyModal}
+            className="text-[10px] text-zinc-600 hover:text-zinc-300 transition-colors"
+            title="Use your own TMDB key (optional)"
+          >
+            <Key className="w-3 h-3 inline mr-1" />
+            Use own key
+          </button>
         )}
 
-        {tmdbKey && (
+        {movies.length > 0 && (
           <button
             onClick={() => setView('board')}
             className={`text-sm px-3 py-1.5 rounded-md transition-colors ${
