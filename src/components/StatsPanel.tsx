@@ -1,17 +1,16 @@
 import { X } from 'lucide-react';
 import type { Tier } from '../types';
-import type { Movie } from '../types';
 
 interface Props {
   tiers: Tier[];
-  tierMovies: Record<string, Movie[]>;
+  tierMovieIds: Record<string, string[]>;
   totalMovies: number;
   onClose: () => void;
 }
 
-export function StatsPanel({ tiers, tierMovies, totalMovies, onClose }: Props) {
+export function StatsPanel({ tiers, tierMovieIds, totalMovies, onClose }: Props) {
   const maxCount = Math.max(
-    ...tiers.map((t) => (tierMovies[t.id] ?? []).length),
+    ...tiers.map((t) => (tierMovieIds[t.id] ?? []).length),
     1
   );
 
@@ -31,7 +30,7 @@ export function StatsPanel({ tiers, tierMovies, totalMovies, onClose }: Props) {
 
       <div className="p-4 space-y-2">
         {tiers.map((tier) => {
-          const count = (tierMovies[tier.id] ?? []).length;
+          const count = (tierMovieIds[tier.id] ?? []).length;
           const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
 
           return (
@@ -61,7 +60,7 @@ export function StatsPanel({ tiers, tierMovies, totalMovies, onClose }: Props) {
 
         <div className="pt-2 mt-2 border-t border-zinc-800 flex justify-between">
           <span className="text-[10px] text-zinc-600">
-            Assigned: {tiers.reduce((sum, t) => sum + (tierMovies[t.id] ?? []).length, 0)}
+            Assigned: {tiers.reduce((sum, t) => sum + (tierMovieIds[t.id] ?? []).length, 0)}
           </span>
           <span className="text-[10px] text-zinc-600">
             Total: {totalMovies} films

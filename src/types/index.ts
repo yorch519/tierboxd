@@ -16,6 +16,8 @@ export interface Tier {
 
 export type AppView = 'import' | 'board';
 
+export type ImportMode = 'merge' | 'replace';
+
 export interface TierMovies {
-  [tierId: string]: Movie[];
+  [tierId: string]: string[];
 }

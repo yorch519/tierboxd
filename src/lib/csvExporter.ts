@@ -1,28 +1,34 @@
 import type { Movie, Tier } from '../types';
 
 export function generateLetterboxdCSV(
-  tierMovies: Record<string, Movie[]>,
+  tierMovieIds: Record<string, string[]>,
   tiers: Tier[],
   allMovies: Movie[]
 ): string {
   const headers = ['Title', 'Year', 'Rating', 'LetterboxdURI', 'tmdbID'];
 
+  const tierByMovieId = new Map<string, Tier>();
+  for (const [tierId, ids] of Object.entries(tierMovieIds)) {
+    const tier = tiers.find((t) => t.id === tierId);
+    if (!tier) continue;
+    for (const id of ids) {
+      if (!tierByMovieId.has(id)) tierByMovieId.set(id, tier);
+    }
+  }
+
   const rows: string[][] = [];
 
   for (const movie of allMovies) {
-    if (!movie.originalRating) continue;
-    const tierEntry = Object.entries(tierMovies).find(([, movies]) =>
-      movies.some((m) => m.id === movie.id)
-    );
-    const tier = tierEntry ? tiers.find((t) => t.id === tierEntry[0]) : null;
+    const tier = tierByMovieId.get(movie.id);
     const newRating = tier ? tier.starRating : movie.originalRating;
+    if (newRating === null) continue;
 
     rows.push([
       escapeCSV(movie.title),
       String(movie.year),
       String(newRating),
       '',
-      movie.id.includes('|') ? '' : movie.id,
+      movie.tmdbId ?? '',
     ]);
   }
 

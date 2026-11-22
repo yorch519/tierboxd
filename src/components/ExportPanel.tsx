@@ -63,28 +63,31 @@ interface Props {
 export function ExportPanel({ onToggleStats, statsVisible }: Props) {
   const movies = useStore((s) => s.movies);
   const tiers = useStore((s) => s.tiers);
-  const tierMovies = useStore((s) => s.tierMovies);
+  const tierMovieIds = useStore((s) => s.tierMovies);
   const [copied, setCopied] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
 
   if (movies.length === 0) return null;
 
-  const assignedCount = Object.values(tierMovies).reduce((sum, ms) => sum + ms.length, 0);
-  const changedCount = Object.entries(tierMovies).reduce((sum, [tierId, ms]) => {
+  const movieById = new Map(movies.map((m) => [m.id, m]));
+  const assignedCount = Object.values(tierMovieIds).reduce((sum, ids) => sum + ids.length, 0);
+  const changedCount = Object.entries(tierMovieIds).reduce((sum, [tierId, ids]) => {
     const tier = tiers.find((t) => t.id === tierId);
     if (!tier) return sum;
-    return sum + ms.filter((m) => m.originalRating !== null && m.originalRating !== tier.starRating).length;
+    return sum + ids.filter((id) => {
+      const movie = movieById.get(id);
+      return movie != null && movie.originalRating !== null && movie.originalRating !== tier.starRating;
+    }).length;
   }, 0);
 
+  const assignedIds = new Set(Object.values(tierMovieIds).flat());
   const hasUnassignedRated = movies.some(
-    (m) =>
-      m.originalRating !== null &&
-      !Object.values(tierMovies).some((ms) => ms.some((tm) => tm.id === m.id))
+    (m) => m.originalRating !== null && !assignedIds.has(m.id)
   );
 
   const handleExport = () => {
-    const csv = generateLetterboxdCSV(tierMovies, tiers, movies);
+    const csv = generateLetterboxdCSV(tierMovieIds, tiers, movies);
     downloadCSV(csv);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

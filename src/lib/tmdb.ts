@@ -13,30 +13,72 @@ function buildHeaders(apiKey?: string | null): Record<string, string> {
   return apiKey ? { [TMDB_KEY_HEADER]: apiKey } : {};
 }
 
-function tmdbFetch(
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'));
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+const MAX_ATTEMPTS = 3;
+
+async function tmdbFetch(
   path: string,
   params: URLSearchParams,
-  apiKey?: string | null
+  apiKey?: string | null,
+  signal?: AbortSignal
 ): Promise<Response> {
   const search = new URLSearchParams(params);
   search.set('path', path);
-  return fetch(`${TMDB_API_BASE}?${search.toString()}`, {
-    headers: buildHeaders(apiKey),
-  });
+  const url = `${TMDB_API_BASE}?${search.toString()}`;
+  const headers = buildHeaders(apiKey);
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    const isLast = attempt === MAX_ATTEMPTS - 1;
+    try {
+      const response = await fetch(url, { headers, signal });
+      if ((response.status === 429 || response.status >= 500) && !isLast) {
+        const retryAfter = Number(response.headers.get('Retry-After'));
+        const delay = Number.isFinite(retryAfter) && retryAfter > 0
+          ? retryAfter * 1000
+          : 400 * 2 ** attempt + Math.random() * 200;
+        await sleep(delay, signal);
+        continue;
+      }
+      return response;
+    } catch (error) {
+      if (signal?.aborted || isLast) throw error;
+      await sleep(400 * 2 ** attempt + Math.random() * 200, signal);
+    }
+  }
+
+  throw new Error('TMDB request failed');
 }
 
 export async function searchMovie(
   title: string,
   year: number,
-  apiKey?: string | null
+  apiKey?: string | null,
+  signal?: AbortSignal
 ): Promise<{ tmdbId: string; posterUrl: string | null } | null> {
   try {
     const params = new URLSearchParams({ query: title });
     if (year) params.set('year', String(year));
 
     const [movieRes, tvRes] = await Promise.all([
-      tmdbFetch('search/movie', params, apiKey),
-      tmdbFetch('search/tv', params, apiKey),
+      tmdbFetch('search/movie', params, apiKey, signal),
+      tmdbFetch('search/tv', params, apiKey, signal),
     ]);
 
     const movieData = movieRes.ok ? await movieRes.json() : { results: [] };
@@ -110,14 +152,15 @@ export interface TmdbResult {
 
 export async function searchMovieCustom(
   query: string,
-  apiKey?: string | null
+  apiKey?: string | null,
+  signal?: AbortSignal
 ): Promise<TmdbResult[]> {
   try {
     const params = new URLSearchParams({ query });
 
     const [movieRes, tvRes] = await Promise.all([
-      tmdbFetch('search/movie', params, apiKey),
-      tmdbFetch('search/tv', params, apiKey),
+      tmdbFetch('search/movie', params, apiKey, signal),
+      tmdbFetch('search/tv', params, apiKey, signal),
     ]);
 
     const movieData = movieRes.ok ? await movieRes.json() : { results: [] };
@@ -156,15 +199,16 @@ export async function searchMovieCustom(
 
 export async function fetchPoster(
   tmdbId: string,
-  apiKey?: string | null
+  apiKey?: string | null,
+  signal?: AbortSignal
 ): Promise<string | null> {
   try {
-    const res = await tmdbFetch(`movie/${tmdbId}`, new URLSearchParams(), apiKey);
+    const res = await tmdbFetch(`movie/${tmdbId}`, new URLSearchParams(), apiKey, signal);
     if (res.ok) {
       const data = await res.json();
       return data.poster_path ? `${TMDB_POSTER_BASE}${data.poster_path}` : null;
     }
-    const tvRes = await tmdbFetch(`tv/${tmdbId}`, new URLSearchParams(), apiKey);
+    const tvRes = await tmdbFetch(`tv/${tmdbId}`, new URLSearchParams(), apiKey, signal);
     if (tvRes.ok) {
       const data = await tvRes.json();
       return data.poster_path ? `${TMDB_POSTER_BASE}${data.poster_path}` : null;

@@ -1,6 +1,9 @@
 import { create } from 'zustand';
-import type { Movie, Tier, AppView, TierMovies } from '../types';
+import type { Movie, Tier, AppView, ImportMode, TierMovies } from '../types';
 import { DEFAULT_TIERS, LS_KEYS } from '../lib/constants';
+
+const STATE_VERSION = 2;
+const PERSIST_DELAY = 400;
 
 interface AppState {
   movies: Movie[];
@@ -15,7 +18,8 @@ interface AppState {
   clearTmdbKey: () => void;
   openKeyModal: () => void;
   closeKeyModal: () => void;
-  setMovies: (movies: Movie[]) => void;
+  importMovies: (incoming: Movie[], mode: ImportMode) => void;
+  seedTiersFromRatings: (options?: { onlyUnassigned?: boolean }) => void;
   setPosterForMovie: (id: string, posterUrl: string | null) => void;
   setMovieTmdbId: (id: string, tmdbId: string) => void;
   setLoadingPosters: (loading: boolean) => void;
@@ -28,34 +32,107 @@ interface AppState {
   reset: () => void;
 }
 
-function loadState() {
+interface PersistedState {
+  version?: number;
+  movies?: unknown;
+  tiers?: unknown;
+  tierMovies?: unknown;
+  view?: unknown;
+}
+
+type PersistedSlices = Pick<AppState, 'movies' | 'tiers' | 'tierMovies' | 'view'>;
+
+function cloneDefaultTiers(): Tier[] {
+  return DEFAULT_TIERS.map((tier) => ({ ...tier }));
+}
+
+function normalizeMovie(value: unknown): Movie | null {
+  if (!value || typeof value !== 'object') return null;
+  const movie = value as Record<string, unknown>;
+  if (typeof movie.id !== 'string' || typeof movie.title !== 'string') return null;
+  const year = typeof movie.year === 'number' ? movie.year : Number(movie.year);
+  return {
+    id: movie.id,
+    title: movie.title,
+    year: Number.isFinite(year) ? year : 0,
+    originalRating: typeof movie.originalRating === 'number' ? movie.originalRating : null,
+    posterUrl: typeof movie.posterUrl === 'string' ? movie.posterUrl : null,
+    tmdbId: typeof movie.tmdbId === 'string' ? movie.tmdbId : null,
+  };
+}
+
+function normalizeTier(value: unknown): Tier | null {
+  if (!value || typeof value !== 'object') return null;
+  const tier = value as Record<string, unknown>;
+  if (typeof tier.id !== 'string' || typeof tier.name !== 'string') return null;
+  return {
+    id: tier.id,
+    name: tier.name,
+    color: typeof tier.color === 'string' ? tier.color : '#888888',
+    starRating: typeof tier.starRating === 'number' ? tier.starRating : 2.5,
+  };
+}
+
+function normalizeTierMovies(value: unknown): TierMovies {
+  const result: TierMovies = {};
+  if (!value || typeof value !== 'object') return result;
+
+  for (const [tierId, entries] of Object.entries(value as Record<string, unknown>)) {
+    if (!Array.isArray(entries)) continue;
+    const ids: string[] = [];
+    for (const entry of entries) {
+      if (typeof entry === 'string') {
+        ids.push(entry);
+      } else if (entry && typeof entry === 'object') {
+        const id = (entry as { id?: unknown }).id;
+        if (typeof id === 'string') ids.push(id);
+      }
+    }
+    result[tierId] = [...new Set(ids)];
+  }
+
+  return result;
+}
+
+function loadState(): PersistedSlices {
+  const fallback: PersistedSlices = {
+    movies: [],
+    tiers: cloneDefaultTiers(),
+    tierMovies: {},
+    view: 'import',
+  };
+
   try {
     const raw = localStorage.getItem(LS_KEYS.STATE);
-    if (raw) return JSON.parse(raw);
-  } catch { /* ignore */ }
-  return null;
-}
+    if (!raw) return fallback;
 
-function saveState(state: Partial<AppState>) {
-  try {
-    const saved = {
-      movies: state.movies,
-      tiers: state.tiers,
-      tierMovies: state.tierMovies,
-      view: state.view,
+    const parsed = JSON.parse(raw) as PersistedState;
+    const movies = Array.isArray(parsed.movies)
+      ? parsed.movies.map(normalizeMovie).filter((m): m is Movie => m !== null)
+      : [];
+    const tiers = Array.isArray(parsed.tiers)
+      ? parsed.tiers.map(normalizeTier).filter((t): t is Tier => t !== null)
+      : [];
+
+    return {
+      movies,
+      tiers: tiers.length > 0 ? tiers : cloneDefaultTiers(),
+      tierMovies: normalizeTierMovies(parsed.tierMovies),
+      view: parsed.view === 'board' ? 'board' : 'import',
     };
-    localStorage.setItem(LS_KEYS.STATE, JSON.stringify(saved));
-  } catch { /* ignore */ }
+  } catch {
+    return fallback;
+  }
 }
 
-const saved = loadState();
+const initial = loadState();
 
 export const useStore = create<AppState>((set, get) => ({
-  movies: saved?.movies ?? [],
-  tiers: saved?.tiers ?? DEFAULT_TIERS,
-  tierMovies: saved?.tierMovies ?? {},
+  movies: initial.movies,
+  tiers: initial.tiers,
+  tierMovies: initial.tierMovies,
   tmdbKey: localStorage.getItem(LS_KEYS.TMDB_KEY) ?? null,
-  view: (saved?.view as AppView) ?? 'import',
+  view: initial.view,
   isLoadingPosters: false,
   keyModalOpen: false,
 
@@ -72,125 +149,205 @@ export const useStore = create<AppState>((set, get) => ({
   openKeyModal: () => set({ keyModalOpen: true }),
   closeKeyModal: () => set({ keyModalOpen: false }),
 
-  setMovies: (movies) => {
-    set({ movies });
-    saveState({ ...get(), movies });
+  importMovies: (incoming, mode) => {
+    const { movies } = get();
+
+    if (mode === 'replace' || movies.length === 0) {
+      set({ movies: incoming, tierMovies: {} });
+      return;
+    }
+
+    const byId = new Map(movies.map((movie) => [movie.id, movie]));
+    for (const movie of incoming) {
+      const prev = byId.get(movie.id);
+      if (prev) {
+        byId.set(movie.id, {
+          ...prev,
+          originalRating: movie.originalRating ?? prev.originalRating,
+          posterUrl: prev.posterUrl ?? movie.posterUrl,
+          tmdbId: prev.tmdbId ?? movie.tmdbId,
+        });
+      } else {
+        byId.set(movie.id, movie);
+      }
+    }
+
+    set({ movies: [...byId.values()] });
+  },
+
+  seedTiersFromRatings: (options) => {
+    const onlyUnassigned = options?.onlyUnassigned ?? false;
+    const { movies, tiers, tierMovies } = get();
+
+    const ratingToTier = new Map<number, string>();
+    for (const tier of tiers) {
+      if (!ratingToTier.has(tier.starRating)) {
+        ratingToTier.set(tier.starRating, tier.id);
+      }
+    }
+
+    const next: TierMovies = {};
+    for (const tier of tiers) next[tier.id] = [];
+
+    const assigned = new Set<string>();
+    if (onlyUnassigned) {
+      for (const [tierId, ids] of Object.entries(tierMovies)) {
+        next[tierId] = next[tierId] ?? [];
+        next[tierId].push(...ids);
+        for (const id of ids) assigned.add(id);
+      }
+    }
+
+    for (const movie of movies) {
+      if (assigned.has(movie.id) || movie.originalRating === null) continue;
+      const tierId = ratingToTier.get(movie.originalRating);
+      if (!tierId) continue;
+      next[tierId].push(movie.id);
+      assigned.add(movie.id);
+    }
+
+    set({ tierMovies: next });
   },
 
   setPosterForMovie: (id, posterUrl) => {
     const { movies } = get();
-    const updated = movies.map((m) => (m.id === id ? { ...m, posterUrl } : m));
-    set({ movies: updated });
-    saveState({ ...get(), movies: updated });
+    set({ movies: movies.map((m) => (m.id === id ? { ...m, posterUrl } : m)) });
   },
 
   setMovieTmdbId: (id, tmdbId) => {
     const { movies } = get();
-    const updated = movies.map((m) => (m.id === id ? { ...m, tmdbId } : m));
-    set({ movies: updated });
-    saveState({ ...get(), movies: updated });
+    set({ movies: movies.map((m) => (m.id === id ? { ...m, tmdbId } : m)) });
   },
 
   setLoadingPosters: (isLoadingPosters) => set({ isLoadingPosters }),
 
   moveMovie: (movieId, toTierId) => {
-    const { movies, tierMovies } = get();
-    const movie = movies.find((m) => m.id === movieId);
-    if (!movie) return;
+    const { tierMovies } = get();
+    const next: TierMovies = {};
 
-    const newTierMovies = { ...tierMovies };
-
-    for (const tid of Object.keys(newTierMovies)) {
-      newTierMovies[tid] = newTierMovies[tid].filter((m) => m.id !== movieId);
+    for (const [tierId, ids] of Object.entries(tierMovies)) {
+      next[tierId] = ids.filter((id) => id !== movieId);
     }
 
     if (toTierId) {
-      if (!newTierMovies[toTierId]) {
-        newTierMovies[toTierId] = [];
-      }
-      newTierMovies[toTierId] = [...newTierMovies[toTierId], movie];
+      next[toTierId] = [...(next[toTierId] ?? []), movieId];
     }
 
-    set({ tierMovies: newTierMovies });
-    saveState({ ...get(), tierMovies: newTierMovies });
+    set({ tierMovies: next });
   },
 
   insertMovie: (movieId, tierId, beforeMovieId) => {
-    const { movies, tierMovies } = get();
-    const movie = movies.find((m) => m.id === movieId);
-    if (!movie) return;
+    const { tierMovies } = get();
+    const next: TierMovies = {};
 
-    const newTierMovies = { ...tierMovies };
-
-    for (const tid of Object.keys(newTierMovies)) {
-      newTierMovies[tid] = newTierMovies[tid].filter((m) => m.id !== movieId);
+    for (const [tid, ids] of Object.entries(tierMovies)) {
+      next[tid] = ids.filter((id) => id !== movieId);
     }
 
-    if (!newTierMovies[tierId]) {
-      newTierMovies[tierId] = [];
-    }
+    if (!next[tierId]) next[tierId] = [];
 
     if (beforeMovieId) {
-      const idx = newTierMovies[tierId].findIndex((m) => m.id === beforeMovieId);
+      const idx = next[tierId].indexOf(beforeMovieId);
       if (idx >= 0) {
-        newTierMovies[tierId] = [
-          ...newTierMovies[tierId].slice(0, idx),
-          movie,
-          ...newTierMovies[tierId].slice(idx),
+        next[tierId] = [
+          ...next[tierId].slice(0, idx),
+          movieId,
+          ...next[tierId].slice(idx),
         ];
       } else {
-        newTierMovies[tierId] = [...newTierMovies[tierId], movie];
+        next[tierId] = [...next[tierId], movieId];
       }
     } else {
-      newTierMovies[tierId] = [...newTierMovies[tierId], movie];
+      next[tierId] = [...next[tierId], movieId];
     }
 
-    set({ tierMovies: newTierMovies });
-    saveState({ ...get(), tierMovies: newTierMovies });
+    set({ tierMovies: next });
   },
 
   updateTier: (tierId, updates) => {
     const { tiers } = get();
-    const updated = tiers.map((t) => (t.id === tierId ? { ...t, ...updates } : t));
-    set({ tiers: updated });
-    saveState({ ...get(), tiers: updated });
+    set({ tiers: tiers.map((t) => (t.id === tierId ? { ...t, ...updates } : t)) });
   },
 
   addTier: () => {
     const { tiers } = get();
-    const newId = `custom-${Date.now()}`;
     const newTier: Tier = {
-      id: newId,
+      id: `custom-${Date.now()}`,
       name: 'New',
       color: '#888888',
       starRating: 2.5,
     };
-    const updated = [...tiers, newTier];
-    set({ tiers: updated });
-    saveState({ ...get(), tiers: updated });
+    set({ tiers: [...tiers, newTier] });
   },
 
   removeTier: (tierId) => {
     const { tiers, tierMovies } = get();
-    const updated = tiers.filter((t) => t.id !== tierId);
-    const newTierMovies = { ...tierMovies };
-    delete newTierMovies[tierId];
-    set({ tiers: updated, tierMovies: newTierMovies });
-    saveState({ ...get(), tiers: updated, tierMovies: newTierMovies });
+    const nextTierMovies = { ...tierMovies };
+    delete nextTierMovies[tierId];
+    set({
+      tiers: tiers.filter((t) => t.id !== tierId),
+      tierMovies: nextTierMovies,
+    });
   },
 
-  setView: (view) => {
-    set({ view });
-    saveState({ ...get(), view });
-  },
+  setView: (view) => set({ view }),
 
   reset: () => {
     localStorage.removeItem(LS_KEYS.STATE);
     set({
       movies: [],
-      tiers: DEFAULT_TIERS,
+      tiers: cloneDefaultTiers(),
       tierMovies: {},
       view: 'import',
     });
   },
 }));
+
+function persistNow() {
+  if (typeof window === 'undefined') return;
+  const { movies, tiers, tierMovies, view } = useStore.getState();
+  try {
+    localStorage.setItem(
+      LS_KEYS.STATE,
+      JSON.stringify({ version: STATE_VERSION, movies, tiers, tierMovies, view })
+    );
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function schedulePersist() {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    persistNow();
+  }, PERSIST_DELAY);
+}
+
+export function flushPersist() {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  persistNow();
+}
+
+useStore.subscribe((state, prev) => {
+  if (
+    state.movies !== prev.movies ||
+    state.tiers !== prev.tiers ||
+    state.tierMovies !== prev.tierMovies ||
+    state.view !== prev.view
+  ) {
+    schedulePersist();
+  }
+});
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushPersist);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPersist();
+  });
+}

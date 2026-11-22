@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -25,7 +25,7 @@ interface Props {
 export function TierBoard({ statsVisible, onCloseStats }: Props) {
   const movies = useStore((s) => s.movies);
   const tiers = useStore((s) => s.tiers);
-  const tierMovies = useStore((s) => s.tierMovies);
+  const tierMovieIds = useStore((s) => s.tierMovies);
   const moveMovie = useStore((s) => s.moveMovie);
   const insertMovie = useStore((s) => s.insertMovie);
   const addTier = useStore((s) => s.addTier);
@@ -38,11 +38,23 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
     })
   );
 
-  const assignedIds = new Set<string>();
-  for (const tms of Object.values(tierMovies)) {
-    for (const m of tms) assignedIds.add(m.id);
-  }
-  const unassigned = movies.filter((m) => !assignedIds.has(m.id));
+  const movieById = useMemo(
+    () => new Map(movies.map((movie) => [movie.id, movie])),
+    [movies]
+  );
+
+  const resolveTier = (ids: string[]): Movie[] =>
+    ids
+      .map((id) => movieById.get(id))
+      .filter((movie): movie is Movie => Boolean(movie));
+
+  const unassigned = useMemo(() => {
+    const assigned = new Set<string>();
+    for (const ids of Object.values(tierMovieIds)) {
+      for (const id of ids) assigned.add(id);
+    }
+    return movies.filter((movie) => !assigned.has(movie.id));
+  }, [movies, tierMovieIds]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const movie = event.active.data.current?.movie as Movie | undefined;
@@ -67,8 +79,8 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
     if (overData?.type === 'movie-target') {
       const targetMovieId = overData.movieId as string;
 
-      for (const [tid, list] of Object.entries(tierMovies)) {
-        if (list.some((m) => m.id === targetMovieId)) {
+      for (const [tid, ids] of Object.entries(tierMovieIds)) {
+        if (ids.includes(targetMovieId)) {
           insertMovie(String(active.id), tid, targetMovieId);
           return;
         }
@@ -113,7 +125,7 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
               <TierRow
                 key={tier.id}
                 tier={tier}
-                movies={tierMovies[tier.id] ?? []}
+                movies={resolveTier(tierMovieIds[tier.id] ?? [])}
               />
             ))}
           </div>
@@ -133,7 +145,7 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
         {statsVisible && (
           <StatsPanel
             tiers={tiers}
-            tierMovies={tierMovies}
+            tierMovieIds={tierMovieIds}
             totalMovies={movies.length}
             onClose={onCloseStats}
           />

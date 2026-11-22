@@ -1,24 +1,38 @@
 import { useState, useCallback, useRef } from 'react';
-import { Upload, FileArchive, FileText, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Upload, FileArchive, FileText, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import JSZip from 'jszip';
 import { useStore } from '../store/useStore';
 import { extractMovies } from '../lib/csvParser';
 import { searchMovie, fetchPoster } from '../lib/tmdb';
+import type { ImportMode } from '../types';
+
+const FETCH_CONCURRENCY = 6;
 
 export function DataImport() {
-  const setMovies = useStore((s) => s.setMovies);
-  const setLoadingPosters = useStore((s) => s.setLoadingPosters);
+  const importMovies = useStore((s) => s.importMovies);
+  const seedTiersFromRatings = useStore((s) => s.seedTiersFromRatings);
   const setPosterForMovie = useStore((s) => s.setPosterForMovie);
   const setView = useStore((s) => s.setView);
   const tmdbKey = useStore((s) => s.tmdbKey);
+  const existingCount = useStore((s) => s.movies.length);
 
   const [status, setStatus] = useState<'idle' | 'parsing' | 'fetching' | 'done' | 'error'>('idle');
   const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [failed, setFailed] = useState(0);
   const [message, setMessage] = useState('');
-  const abortRef = useRef(false);
+  const [mode, setMode] = useState<ImportMode>('merge');
+  const [seedFromRatings, setSeedFromRatings] = useState(true);
+
+  const controllerRef = useRef<AbortController | null>(null);
+
+  const handleCancel = useCallback(() => {
+    controllerRef.current?.abort();
+  }, []);
 
   const handleFiles = useCallback(async (fileList: FileList | File[]) => {
-    abortRef.current = false;
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    setFailed(0);
     setStatus('parsing');
     setMessage('Reading files...');
 
@@ -30,12 +44,17 @@ export function DataImport() {
           const zip = await JSZip.loadAsync(file);
           for (const [name, entry] of Object.entries(zip.files)) {
             if (entry.dir) continue;
-            const content = await entry.async('string');
-            files[name] = content;
+            files[name] = await entry.async('string');
           }
         } else if (file.name.endsWith('.csv')) {
           files[file.name] = await file.text();
         }
+      }
+
+      if (controller.signal.aborted) {
+        setStatus('idle');
+        setMessage('Import cancelled.');
+        return;
       }
 
       const movies = extractMovies(files);
@@ -46,45 +65,88 @@ export function DataImport() {
         return;
       }
 
-      setMovies(movies);
-      setMessage(`Found ${movies.length} movies. Fetching posters...`);
+      const hadMovies = useStore.getState().movies.length > 0;
+      const effectiveMode: ImportMode = hadMovies ? mode : 'replace';
+      importMovies(movies, effectiveMode);
 
-      setStatus('fetching');
-      setLoadingPosters(true);
-
-      const toFetch = movies.filter((m) => !m.posterUrl && m.title);
-      setProgress({ current: 0, total: toFetch.length });
-
-      const batchSize = 5;
-      for (let i = 0; i < toFetch.length; i += batchSize) {
-        if (abortRef.current) break;
-        const batch = toFetch.slice(i, i + batchSize);
-        await Promise.all(
-          batch.map(async (movie) => {
-            try {
-              if (movie.tmdbId) {
-                const posterUrl = await fetchPoster(movie.tmdbId, tmdbKey);
-                if (posterUrl) setPosterForMovie(movie.id, posterUrl);
-              } else {
-                const result = await searchMovie(movie.title, movie.year, tmdbKey);
-                if (result) {
-                  setPosterForMovie(movie.id, result.posterUrl);
-                }
-              }
-            } catch { /* skip */ }
-          })
-        );
-        setProgress({ current: Math.min(i + batchSize, toFetch.length), total: toFetch.length });
+      if (seedFromRatings) {
+        seedTiersFromRatings({ onlyUnassigned: effectiveMode === 'merge' && hadMovies });
       }
 
-      setLoadingPosters(false);
+      const toFetch = useStore.getState().movies.filter((m) => !m.posterUrl && m.title);
+      setMessage(`Found ${movies.length} movies. Fetching posters...`);
+      setStatus('fetching');
+      setProgress({ current: 0, total: toFetch.length });
+
+      let done = 0;
+      let errors = 0;
+      let cursor = 0;
+
+      const worker = async () => {
+        while (cursor < toFetch.length) {
+          if (controller.signal.aborted) return;
+          const movie = toFetch[cursor++];
+          let resolved = false;
+
+          try {
+            if (movie.tmdbId) {
+              const posterUrl = await fetchPoster(movie.tmdbId, tmdbKey, controller.signal);
+              if (controller.signal.aborted) return;
+              if (posterUrl) {
+                setPosterForMovie(movie.id, posterUrl);
+                resolved = true;
+              }
+            } else {
+              const result = await searchMovie(movie.title, movie.year, tmdbKey, controller.signal);
+              if (controller.signal.aborted) return;
+              if (result) {
+                setPosterForMovie(movie.id, result.posterUrl);
+                resolved = true;
+              }
+            }
+          } catch {
+            if (controller.signal.aborted) return;
+          }
+
+          if (!resolved) errors += 1;
+          done += 1;
+
+          if (done === toFetch.length || done % 5 === 0) {
+            setProgress({ current: done, total: toFetch.length });
+            setFailed(errors);
+          }
+        }
+      };
+
+      const workerCount = Math.min(FETCH_CONCURRENCY, toFetch.length);
+      await Promise.all(Array.from({ length: workerCount }, worker));
+
+      if (controller.signal.aborted) {
+        setStatus('idle');
+        setMessage(`Import cancelled (${done}/${toFetch.length} posters processed).`);
+        return;
+      }
+
+      setFailed(errors);
       setStatus('done');
+      setMessage(
+        errors > 0
+          ? `Import complete. ${errors} poster${errors === 1 ? '' : 's'} not found.`
+          : 'Import complete.'
+      );
       setTimeout(() => setView('board'), 600);
     } catch (err) {
+      if (controller.signal.aborted) {
+        setStatus('idle');
+        setMessage('Import cancelled.');
+        return;
+      }
       setStatus('error');
       setMessage(err instanceof Error ? err.message : 'Failed to process files');
+    } finally {
+      controllerRef.current = null;
     }
-  }, [tmdbKey, setMovies, setPosterForMovie, setLoadingPosters, setView]);
+  }, [tmdbKey, mode, seedFromRatings, importMovies, seedTiersFromRatings, setPosterForMovie, setView]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -95,20 +157,36 @@ export function DataImport() {
     if (e.target.files) handleFiles(e.target.files);
   }, [handleFiles]);
 
-  if (status === 'fetching') {
+  if (status === 'parsing' || status === 'fetching') {
+    const pct = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] gap-6 px-4">
         <Loader2 className="w-10 h-10 text-orange-400 animate-spin" />
         <p className="text-zinc-300 text-sm">{message}</p>
-        <div className="w-64 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-          <div
-            className="h-full bg-orange-500 rounded-full transition-all duration-300"
-            style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
-          />
-        </div>
-        <p className="text-xs text-zinc-500">
-          {progress.current} / {progress.total} posters
-        </p>
+
+        {status === 'fetching' && (
+          <>
+            <div className="w-64 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+              <div
+                className="h-full bg-orange-500 rounded-full transition-all duration-300"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <p className="text-xs text-zinc-500">
+              {progress.current} / {progress.total} posters
+              {failed > 0 ? ` · ${failed} not found` : ''}
+            </p>
+          </>
+        )}
+
+        <button
+          onClick={handleCancel}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-400
+                     border border-zinc-700 rounded-lg hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+        >
+          <X className="w-3.5 h-3.5" />
+          Cancel
+        </button>
       </div>
     );
   }
@@ -121,6 +199,44 @@ export function DataImport() {
           Export your data from Letterboxd (Settings &gt; Data &gt; Export) and drop the ZIP file here,
           or upload individual CSV files.
         </p>
+      </div>
+
+      <div className="flex flex-col items-center gap-3">
+        {existingCount > 0 && (
+          <div className="flex items-center gap-3 text-xs text-zinc-400">
+            <span className="text-zinc-500">Re-import:</span>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="radio"
+                name="import-mode"
+                checked={mode === 'merge'}
+                onChange={() => setMode('merge')}
+                className="accent-orange-500"
+              />
+              Merge
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="radio"
+                name="import-mode"
+                checked={mode === 'replace'}
+                onChange={() => setMode('replace')}
+                className="accent-orange-500"
+              />
+              Replace
+            </label>
+          </div>
+        )}
+
+        <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={seedFromRatings}
+            onChange={(e) => setSeedFromRatings(e.target.checked)}
+            className="accent-orange-500"
+          />
+          Pre-fill tiers from my ratings
+        </label>
       </div>
 
       <label
@@ -153,7 +269,14 @@ export function DataImport() {
       {status === 'done' && (
         <div className="flex items-center gap-2 text-green-400 text-sm">
           <CheckCircle2 className="w-4 h-4" />
-          Import complete
+          {message}
+        </div>
+      )}
+
+      {status === 'idle' && message && (
+        <div className="flex items-center gap-2 text-amber-400 text-sm">
+          <AlertCircle className="w-4 h-4" />
+          {message}
         </div>
       )}
 
