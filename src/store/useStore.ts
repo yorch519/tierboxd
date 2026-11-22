@@ -1,28 +1,45 @@
 import { create } from 'zustand';
-import type { Movie, Tier, AppView, ImportMode, TierMovies } from '../types';
+import type {
+  Movie,
+  Tier,
+  Board,
+  AppView,
+  ImportMode,
+  TierTemplateId,
+  TierMovies,
+} from '../types';
 import { DEFAULT_TIERS, LS_KEYS } from '../lib/constants';
+import { createTiers } from '../lib/tierTemplates';
 
-const STATE_VERSION = 2;
+const STATE_VERSION = 3;
 const PERSIST_DELAY = 400;
 
 interface AppState {
-  movies: Movie[];
-  tiers: Tier[];
-  tierMovies: TierMovies;
+  boards: Board[];
+  activeBoardId: string | null;
   tmdbKey: string | null;
   view: AppView;
-  isLoadingPosters: boolean;
   keyModalOpen: boolean;
 
   setTmdbKey: (key: string) => void;
   clearTmdbKey: () => void;
   openKeyModal: () => void;
   closeKeyModal: () => void;
+
+  createBoard: (name: string, templateId: TierTemplateId, origin?: Board['origin']) => string;
+  setActiveBoard: (id: string) => void;
+  renameBoard: (id: string, name: string) => void;
+  duplicateBoard: (id: string) => string | null;
+  deleteBoard: (id: string) => void;
+
   importMovies: (incoming: Movie[], mode: ImportMode) => void;
   seedTiersFromRatings: (options?: { onlyUnassigned?: boolean }) => void;
+  addMovieToActiveBoard: (movie: Movie) => boolean;
+  removeMovieFromActiveBoard: (id: string) => void;
+
   setPosterForMovie: (id: string, posterUrl: string | null) => void;
+  setPosterForBoard: (boardId: string, movieId: string, posterUrl: string | null) => void;
   setMovieTmdbId: (id: string, tmdbId: string) => void;
-  setLoadingPosters: (loading: boolean) => void;
   moveMovie: (movieId: string, toTierId: string | null) => void;
   insertMovie: (movieId: string, tierId: string, beforeMovieId?: string) => void;
   updateTier: (tierId: string, updates: Partial<Tier>) => void;
@@ -34,13 +51,19 @@ interface AppState {
 
 interface PersistedState {
   version?: number;
+  boards?: unknown;
+  activeBoardId?: unknown;
   movies?: unknown;
   tiers?: unknown;
   tierMovies?: unknown;
   view?: unknown;
 }
 
-type PersistedSlices = Pick<AppState, 'movies' | 'tiers' | 'tierMovies' | 'view'>;
+interface PersistedSlices {
+  boards: Board[];
+  activeBoardId: string | null;
+  view: AppView;
+}
 
 function cloneDefaultTiers(): Tier[] {
   return DEFAULT_TIERS.map((tier) => ({ ...tier }));
@@ -94,31 +117,87 @@ function normalizeTierMovies(value: unknown): TierMovies {
   return result;
 }
 
-function loadState(): PersistedSlices {
-  const fallback: PersistedSlices = {
-    movies: [],
-    tiers: cloneDefaultTiers(),
-    tierMovies: {},
-    view: 'import',
+function normalizeBoard(value: unknown): Board | null {
+  if (!value || typeof value !== 'object') return null;
+  const board = value as Record<string, unknown>;
+  if (typeof board.id !== 'string' || typeof board.name !== 'string') return null;
+
+  const movies = Array.isArray(board.movies)
+    ? board.movies.map(normalizeMovie).filter((m): m is Movie => m !== null)
+    : [];
+  const tiers = Array.isArray(board.tiers)
+    ? board.tiers.map(normalizeTier).filter((t): t is Tier => t !== null)
+    : [];
+  const now = Date.now();
+
+  return {
+    id: board.id,
+    name: board.name,
+    origin: board.origin === 'letterboxd' ? 'letterboxd' : 'manual',
+    movies,
+    tiers: tiers.length > 0 ? tiers : cloneDefaultTiers(),
+    tierMovies: normalizeTierMovies(board.tierMovies),
+    createdAt: typeof board.createdAt === 'number' ? board.createdAt : now,
+    updatedAt: typeof board.updatedAt === 'number' ? board.updatedAt : now,
   };
+}
+
+function loadState(): PersistedSlices {
+  const fallback: PersistedSlices = { boards: [], activeBoardId: null, view: 'home' };
 
   try {
     const raw = localStorage.getItem(LS_KEYS.STATE);
     if (!raw) return fallback;
-
     const parsed = JSON.parse(raw) as PersistedState;
-    const movies = Array.isArray(parsed.movies)
+
+    if (Array.isArray(parsed.boards)) {
+      const boards = parsed.boards.map(normalizeBoard).filter((b): b is Board => b !== null);
+      let activeBoardId = typeof parsed.activeBoardId === 'string' ? parsed.activeBoardId : null;
+      if (!activeBoardId || !boards.some((b) => b.id === activeBoardId)) {
+        activeBoardId = boards[0]?.id ?? null;
+      }
+      const view: AppView =
+        parsed.view === 'board' || parsed.view === 'import' || parsed.view === 'home'
+          ? parsed.view
+          : 'home';
+      return {
+        boards,
+        activeBoardId,
+        view: view === 'board' && !activeBoardId ? 'home' : view,
+      };
+    }
+
+    // Legacy single-board state (v1/v2).
+    const legacyMovies = Array.isArray(parsed.movies)
       ? parsed.movies.map(normalizeMovie).filter((m): m is Movie => m !== null)
       : [];
-    const tiers = Array.isArray(parsed.tiers)
+    const legacyTiers = Array.isArray(parsed.tiers)
       ? parsed.tiers.map(normalizeTier).filter((t): t is Tier => t !== null)
       : [];
+    const legacyTierMovies = normalizeTierMovies(parsed.tierMovies);
+
+    const isEmpty =
+      legacyMovies.length === 0 &&
+      Object.keys(legacyTierMovies).length === 0 &&
+      legacyTiers.length === 0;
+    if (isEmpty) return fallback;
+
+    const now = Date.now();
+    const board: Board = {
+      id: 'board-migrated',
+      name: 'My Tier List',
+      origin: 'letterboxd',
+      movies: legacyMovies,
+      tiers: legacyTiers.length > 0 ? legacyTiers : cloneDefaultTiers(),
+      tierMovies: legacyTierMovies,
+      createdAt: now,
+      updatedAt: now,
+    };
 
     return {
-      movies,
-      tiers: tiers.length > 0 ? tiers : cloneDefaultTiers(),
-      tierMovies: normalizeTierMovies(parsed.tierMovies),
-      view: parsed.view === 'board' ? 'board' : 'import',
+      boards: [board],
+      activeBoardId: board.id,
+      view: parsed.view === 'import' ? 'import' : 'board',
     };
   } catch {
     return fallback;
@@ -127,189 +206,322 @@ function loadState(): PersistedSlices {
 
 const initial = loadState();
 
-export const useStore = create<AppState>((set, get) => ({
-  movies: initial.movies,
-  tiers: initial.tiers,
-  tierMovies: initial.tierMovies,
-  tmdbKey: localStorage.getItem(LS_KEYS.TMDB_KEY) ?? null,
-  view: initial.view,
-  isLoadingPosters: false,
-  keyModalOpen: false,
+export const useStore = create<AppState>((set, get) => {
+  const patchBoard = (updater: (board: Board) => Board): Board | null => {
+    const { boards, activeBoardId } = get();
+    const index = boards.findIndex((board) => board.id === activeBoardId);
+    if (index < 0) return null;
 
-  setTmdbKey: (key) => {
-    localStorage.setItem(LS_KEYS.TMDB_KEY, key);
-    set({ tmdbKey: key });
-  },
+    const updated = { ...updater(boards[index]), updatedAt: Date.now() };
+    const next = [...boards];
+    next[index] = updated;
+    set({ boards: next });
+    return updated;
+  };
 
-  clearTmdbKey: () => {
-    localStorage.removeItem(LS_KEYS.TMDB_KEY);
-    set({ tmdbKey: null });
-  },
+  return {
+    boards: initial.boards,
+    activeBoardId: initial.activeBoardId,
+    tmdbKey: localStorage.getItem(LS_KEYS.TMDB_KEY) ?? null,
+    view: initial.view,
+    keyModalOpen: false,
 
-  openKeyModal: () => set({ keyModalOpen: true }),
-  closeKeyModal: () => set({ keyModalOpen: false }),
+    setTmdbKey: (key) => {
+      localStorage.setItem(LS_KEYS.TMDB_KEY, key);
+      set({ tmdbKey: key });
+    },
 
-  importMovies: (incoming, mode) => {
-    const { movies } = get();
+    clearTmdbKey: () => {
+      localStorage.removeItem(LS_KEYS.TMDB_KEY);
+      set({ tmdbKey: null });
+    },
 
-    if (mode === 'replace' || movies.length === 0) {
-      set({ movies: incoming, tierMovies: {} });
-      return;
-    }
+    openKeyModal: () => set({ keyModalOpen: true }),
+    closeKeyModal: () => set({ keyModalOpen: false }),
 
-    const byId = new Map(movies.map((movie) => [movie.id, movie]));
-    for (const movie of incoming) {
-      const prev = byId.get(movie.id);
-      if (prev) {
-        byId.set(movie.id, {
-          ...prev,
-          originalRating: movie.originalRating ?? prev.originalRating,
-          posterUrl: prev.posterUrl ?? movie.posterUrl,
-          tmdbId: prev.tmdbId ?? movie.tmdbId,
-        });
-      } else {
-        byId.set(movie.id, movie);
-      }
-    }
+    createBoard: (name, templateId, origin = 'manual') => {
+      const now = Date.now();
+      const board: Board = {
+        id: `board-${now}-${Math.random().toString(36).slice(2, 8)}`,
+        name: name.trim() || 'Untitled list',
+        origin,
+        movies: [],
+        tiers: createTiers(templateId),
+        tierMovies: {},
+        createdAt: now,
+        updatedAt: now,
+      };
+      set((state) => ({ boards: [...state.boards, board], activeBoardId: board.id }));
+      return board.id;
+    },
 
-    set({ movies: [...byId.values()] });
-  },
+    setActiveBoard: (id) => set({ activeBoardId: id }),
 
-  seedTiersFromRatings: (options) => {
-    const onlyUnassigned = options?.onlyUnassigned ?? false;
-    const { movies, tiers, tierMovies } = get();
+    renameBoard: (id, name) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      set((state) => ({
+        boards: state.boards.map((board) =>
+          board.id === id ? { ...board, name: trimmed, updatedAt: Date.now() } : board
+        ),
+      }));
+    },
 
-    const ratingToTier = new Map<number, string>();
-    for (const tier of tiers) {
-      if (!ratingToTier.has(tier.starRating)) {
-        ratingToTier.set(tier.starRating, tier.id);
-      }
-    }
+    duplicateBoard: (id) => {
+      const { boards } = get();
+      const source = boards.find((board) => board.id === id);
+      if (!source) return null;
 
-    const next: TierMovies = {};
-    for (const tier of tiers) next[tier.id] = [];
+      const now = Date.now();
+      const copy: Board = {
+        ...source,
+        id: `board-${now}-${Math.random().toString(36).slice(2, 8)}`,
+        name: `${source.name} (copy)`,
+        movies: source.movies.map((movie) => ({ ...movie })),
+        tiers: source.tiers.map((tier) => ({ ...tier })),
+        tierMovies: Object.fromEntries(
+          Object.entries(source.tierMovies).map(([tierId, ids]) => [tierId, [...ids]])
+        ),
+        createdAt: now,
+        updatedAt: now,
+      };
 
-    const assigned = new Set<string>();
-    if (onlyUnassigned) {
-      for (const [tierId, ids] of Object.entries(tierMovies)) {
-        next[tierId] = next[tierId] ?? [];
-        next[tierId].push(...ids);
-        for (const id of ids) assigned.add(id);
-      }
-    }
+      set((state) => ({ boards: [...state.boards, copy], activeBoardId: copy.id }));
+      return copy.id;
+    },
 
-    for (const movie of movies) {
-      if (assigned.has(movie.id) || movie.originalRating === null) continue;
-      const tierId = ratingToTier.get(movie.originalRating);
-      if (!tierId) continue;
-      next[tierId].push(movie.id);
-      assigned.add(movie.id);
-    }
+    deleteBoard: (id) => {
+      set((state) => {
+        const boards = state.boards.filter((board) => board.id !== id);
+        const activeBoardId =
+          state.activeBoardId === id ? boards[0]?.id ?? null : state.activeBoardId;
+        return {
+          boards,
+          activeBoardId,
+          view: boards.length === 0 ? 'home' : state.view,
+        };
+      });
+    },
 
-    set({ tierMovies: next });
-  },
+    importMovies: (incoming, mode) => {
+      patchBoard((board) => {
+        if (mode === 'replace' || board.movies.length === 0) {
+          return { ...board, movies: incoming, tierMovies: {} };
+        }
 
-  setPosterForMovie: (id, posterUrl) => {
-    const { movies } = get();
-    set({ movies: movies.map((m) => (m.id === id ? { ...m, posterUrl } : m)) });
-  },
+        const byId = new Map(board.movies.map((movie) => [movie.id, movie]));
+        for (const movie of incoming) {
+          const prev = byId.get(movie.id);
+          if (prev) {
+            byId.set(movie.id, {
+              ...prev,
+              originalRating: movie.originalRating ?? prev.originalRating,
+              posterUrl: prev.posterUrl ?? movie.posterUrl,
+              tmdbId: prev.tmdbId ?? movie.tmdbId,
+            });
+          } else {
+            byId.set(movie.id, movie);
+          }
+        }
 
-  setMovieTmdbId: (id, tmdbId) => {
-    const { movies } = get();
-    set({ movies: movies.map((m) => (m.id === id ? { ...m, tmdbId } : m)) });
-  },
+        return { ...board, movies: [...byId.values()] };
+      });
+    },
 
-  setLoadingPosters: (isLoadingPosters) => set({ isLoadingPosters }),
+    seedTiersFromRatings: (options) => {
+      const onlyUnassigned = options?.onlyUnassigned ?? false;
+      patchBoard((board) => {
+        const ratingToTier = new Map<number, string>();
+        for (const tier of board.tiers) {
+          if (!ratingToTier.has(tier.starRating)) {
+            ratingToTier.set(tier.starRating, tier.id);
+          }
+        }
 
-  moveMovie: (movieId, toTierId) => {
-    const { tierMovies } = get();
-    const next: TierMovies = {};
+        const next: TierMovies = {};
+        for (const tier of board.tiers) next[tier.id] = [];
 
-    for (const [tierId, ids] of Object.entries(tierMovies)) {
-      next[tierId] = ids.filter((id) => id !== movieId);
-    }
+        const assigned = new Set<string>();
+        if (onlyUnassigned) {
+          for (const [tierId, ids] of Object.entries(board.tierMovies)) {
+            next[tierId] = next[tierId] ?? [];
+            next[tierId].push(...ids);
+            for (const id of ids) assigned.add(id);
+          }
+        }
 
-    if (toTierId) {
-      next[toTierId] = [...(next[toTierId] ?? []), movieId];
-    }
+        for (const movie of board.movies) {
+          if (assigned.has(movie.id) || movie.originalRating === null) continue;
+          const tierId = ratingToTier.get(movie.originalRating);
+          if (!tierId) continue;
+          next[tierId].push(movie.id);
+          assigned.add(movie.id);
+        }
 
-    set({ tierMovies: next });
-  },
+        return { ...board, tierMovies: next };
+      });
+    },
 
-  insertMovie: (movieId, tierId, beforeMovieId) => {
-    const { tierMovies } = get();
-    const next: TierMovies = {};
+    addMovieToActiveBoard: (movie) => {
+      const { boards, activeBoardId } = get();
+      const board = boards.find((item) => item.id === activeBoardId);
+      if (!board) return false;
 
-    for (const [tid, ids] of Object.entries(tierMovies)) {
-      next[tid] = ids.filter((id) => id !== movieId);
-    }
+      const exists = board.movies.some(
+        (existing) =>
+          (movie.tmdbId !== null && existing.tmdbId === movie.tmdbId) ||
+          existing.id === movie.id
+      );
+      if (exists) return false;
 
-    if (!next[tierId]) next[tierId] = [];
+      patchBoard((current) => ({ ...current, movies: [...current.movies, movie] }));
+      return true;
+    },
 
-    if (beforeMovieId) {
-      const idx = next[tierId].indexOf(beforeMovieId);
-      if (idx >= 0) {
-        next[tierId] = [
-          ...next[tierId].slice(0, idx),
-          movieId,
-          ...next[tierId].slice(idx),
-        ];
-      } else {
-        next[tierId] = [...next[tierId], movieId];
-      }
-    } else {
-      next[tierId] = [...next[tierId], movieId];
-    }
+    removeMovieFromActiveBoard: (id) => {
+      patchBoard((board) => {
+        const tierMovies: TierMovies = {};
+        for (const [tierId, ids] of Object.entries(board.tierMovies)) {
+          tierMovies[tierId] = ids.filter((movieId) => movieId !== id);
+        }
+        return {
+          ...board,
+          movies: board.movies.filter((movie) => movie.id !== id),
+          tierMovies,
+        };
+      });
+    },
 
-    set({ tierMovies: next });
-  },
+    setPosterForMovie: (id, posterUrl) => {
+      patchBoard((board) => ({
+        ...board,
+        movies: board.movies.map((movie) =>
+          movie.id === id ? { ...movie, posterUrl } : movie
+        ),
+      }));
+    },
 
-  updateTier: (tierId, updates) => {
-    const { tiers } = get();
-    set({ tiers: tiers.map((t) => (t.id === tierId ? { ...t, ...updates } : t)) });
-  },
+    setPosterForBoard: (boardId, movieId, posterUrl) => {
+      set((state) => ({
+        boards: state.boards.map((board) =>
+          board.id === boardId
+            ? {
+                ...board,
+                movies: board.movies.map((movie) =>
+                  movie.id === movieId ? { ...movie, posterUrl } : movie
+                ),
+                updatedAt: Date.now(),
+              }
+            : board
+        ),
+      }));
+    },
 
-  addTier: () => {
-    const { tiers } = get();
-    const newTier: Tier = {
-      id: `custom-${Date.now()}`,
-      name: 'New',
-      color: '#888888',
-      starRating: 2.5,
-    };
-    set({ tiers: [...tiers, newTier] });
-  },
+    setMovieTmdbId: (id, tmdbId) => {
+      patchBoard((board) => ({
+        ...board,
+        movies: board.movies.map((movie) =>
+          movie.id === id ? { ...movie, tmdbId } : movie
+        ),
+      }));
+    },
 
-  removeTier: (tierId) => {
-    const { tiers, tierMovies } = get();
-    const nextTierMovies = { ...tierMovies };
-    delete nextTierMovies[tierId];
-    set({
-      tiers: tiers.filter((t) => t.id !== tierId),
-      tierMovies: nextTierMovies,
-    });
-  },
+    moveMovie: (movieId, toTierId) => {
+      patchBoard((board) => {
+        const next: TierMovies = {};
+        for (const [tierId, ids] of Object.entries(board.tierMovies)) {
+          next[tierId] = ids.filter((id) => id !== movieId);
+        }
+        if (toTierId) {
+          next[toTierId] = [...(next[toTierId] ?? []), movieId];
+        }
+        return { ...board, tierMovies: next };
+      });
+    },
 
-  setView: (view) => set({ view }),
+    insertMovie: (movieId, tierId, beforeMovieId) => {
+      patchBoard((board) => {
+        const next: TierMovies = {};
+        for (const [tid, ids] of Object.entries(board.tierMovies)) {
+          next[tid] = ids.filter((id) => id !== movieId);
+        }
+        if (!next[tierId]) next[tierId] = [];
 
-  reset: () => {
-    localStorage.removeItem(LS_KEYS.STATE);
-    set({
-      movies: [],
-      tiers: cloneDefaultTiers(),
-      tierMovies: {},
-      view: 'import',
-    });
-  },
-}));
+        if (beforeMovieId) {
+          const index = next[tierId].indexOf(beforeMovieId);
+          if (index >= 0) {
+            next[tierId] = [
+              ...next[tierId].slice(0, index),
+              movieId,
+              ...next[tierId].slice(index),
+            ];
+          } else {
+            next[tierId] = [...next[tierId], movieId];
+          }
+        } else {
+          next[tierId] = [...next[tierId], movieId];
+        }
+
+        return { ...board, tierMovies: next };
+      });
+    },
+
+    updateTier: (tierId, updates) => {
+      patchBoard((board) => ({
+        ...board,
+        tiers: board.tiers.map((tier) =>
+          tier.id === tierId ? { ...tier, ...updates } : tier
+        ),
+      }));
+    },
+
+    addTier: () => {
+      patchBoard((board) => ({
+        ...board,
+        tiers: [
+          ...board.tiers,
+          {
+            id: `custom-${Date.now()}`,
+            name: 'New',
+            color: '#888888',
+            starRating: 2.5,
+          },
+        ],
+      }));
+    },
+
+    removeTier: (tierId) => {
+      patchBoard((board) => {
+        const tierMovies = { ...board.tierMovies };
+        delete tierMovies[tierId];
+        return {
+          ...board,
+          tiers: board.tiers.filter((tier) => tier.id !== tierId),
+          tierMovies,
+        };
+      });
+    },
+
+    setView: (view) => set({ view }),
+
+    reset: () => {
+      localStorage.removeItem(LS_KEYS.STATE);
+      set({ boards: [], activeBoardId: null, view: 'home' });
+    },
+  };
+});
+
+export function useActiveBoard(): Board | null {
+  return useStore((state) => state.boards.find((board) => board.id === state.activeBoardId) ?? null);
+}
 
 function persistNow() {
   if (typeof window === 'undefined') return;
-  const { movies, tiers, tierMovies, view } = useStore.getState();
+  const { boards, activeBoardId, view } = useStore.getState();
   try {
     localStorage.setItem(
       LS_KEYS.STATE,
-      JSON.stringify({ version: STATE_VERSION, movies, tiers, tierMovies, view })
+      JSON.stringify({ version: STATE_VERSION, boards, activeBoardId, view })
     );
   } catch {
     /* ignore quota errors */
@@ -336,9 +548,8 @@ export function flushPersist() {
 
 useStore.subscribe((state, prev) => {
   if (
-    state.movies !== prev.movies ||
-    state.tiers !== prev.tiers ||
-    state.tierMovies !== prev.tierMovies ||
+    state.boards !== prev.boards ||
+    state.activeBoardId !== prev.activeBoardId ||
     state.view !== prev.view
   ) {
     schedulePersist();

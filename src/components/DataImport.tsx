@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Upload, FileArchive, FileText, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import JSZip from 'jszip';
-import { useStore } from '../store/useStore';
+import { useStore, useActiveBoard } from '../store/useStore';
 import { extractMovies } from '../lib/csvParser';
 import { searchMovie, fetchPoster } from '../lib/tmdb';
 import type { ImportMode } from '../types';
@@ -9,17 +9,21 @@ import type { ImportMode } from '../types';
 const FETCH_CONCURRENCY = 6;
 
 export function DataImport() {
+  const createBoard = useStore((s) => s.createBoard);
   const importMovies = useStore((s) => s.importMovies);
   const seedTiersFromRatings = useStore((s) => s.seedTiersFromRatings);
-  const setPosterForMovie = useStore((s) => s.setPosterForMovie);
+  const setPosterForBoard = useStore((s) => s.setPosterForBoard);
   const setView = useStore((s) => s.setView);
   const tmdbKey = useStore((s) => s.tmdbKey);
-  const existingCount = useStore((s) => s.movies.length);
+  const activeBoard = useActiveBoard();
+  const hasActiveBoard = activeBoard !== null;
+  const existingCount = activeBoard?.movies.length ?? 0;
 
   const [status, setStatus] = useState<'idle' | 'parsing' | 'fetching' | 'done' | 'error'>('idle');
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [failed, setFailed] = useState(0);
   const [message, setMessage] = useState('');
+  const [target, setTarget] = useState<'new' | 'active'>('new');
   const [mode, setMode] = useState<ImportMode>('merge');
   const [seedFromRatings, setSeedFromRatings] = useState(true);
 
@@ -65,15 +69,31 @@ export function DataImport() {
         return;
       }
 
-      const hadMovies = useStore.getState().movies.length > 0;
-      const effectiveMode: ImportMode = hadMovies ? mode : 'replace';
-      importMovies(movies, effectiveMode);
+      const snapshot = useStore.getState();
+      const currentBoard =
+        snapshot.boards.find((board) => board.id === snapshot.activeBoardId) ?? null;
+      const importIntoNew = target === 'new' || currentBoard === null;
 
-      if (seedFromRatings) {
-        seedTiersFromRatings({ onlyUnassigned: effectiveMode === 'merge' && hadMovies });
+      if (importIntoNew) {
+        createBoard(`Letterboxd ${new Date().toLocaleDateString()}`, 'stars', 'letterboxd');
       }
 
-      const toFetch = useStore.getState().movies.filter((m) => !m.posterUrl && m.title);
+      const effectiveMode: ImportMode = importIntoNew
+        ? 'replace'
+        : currentBoard.movies.length > 0
+          ? mode
+          : 'replace';
+
+      importMovies(movies, effectiveMode);
+      if (seedFromRatings) {
+        seedTiersFromRatings({ onlyUnassigned: effectiveMode === 'merge' });
+      }
+
+      const afterImport = useStore.getState();
+      const importedBoard =
+        afterImport.boards.find((board) => board.id === afterImport.activeBoardId) ?? null;
+      const targetBoardId = importedBoard?.id ?? null;
+      const toFetch = importedBoard?.movies.filter((m) => !m.posterUrl && m.title) ?? [];
       setMessage(`Found ${movies.length} movies. Fetching posters...`);
       setStatus('fetching');
       setProgress({ current: 0, total: toFetch.length });
@@ -93,14 +113,14 @@ export function DataImport() {
               const posterUrl = await fetchPoster(movie.tmdbId, tmdbKey, controller.signal);
               if (controller.signal.aborted) return;
               if (posterUrl) {
-                setPosterForMovie(movie.id, posterUrl);
+                if (targetBoardId) setPosterForBoard(targetBoardId, movie.id, posterUrl);
                 resolved = true;
               }
             } else {
               const result = await searchMovie(movie.title, movie.year, tmdbKey, controller.signal);
               if (controller.signal.aborted) return;
               if (result) {
-                setPosterForMovie(movie.id, result.posterUrl);
+                if (targetBoardId) setPosterForBoard(targetBoardId, movie.id, result.posterUrl);
                 resolved = true;
               }
             }
@@ -146,7 +166,17 @@ export function DataImport() {
     } finally {
       controllerRef.current = null;
     }
-  }, [tmdbKey, mode, seedFromRatings, importMovies, seedTiersFromRatings, setPosterForMovie, setView]);
+  }, [
+    tmdbKey,
+    target,
+    mode,
+    seedFromRatings,
+    createBoard,
+    importMovies,
+    seedTiersFromRatings,
+    setPosterForBoard,
+    setView,
+  ]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -202,9 +232,35 @@ export function DataImport() {
       </div>
 
       <div className="flex flex-col items-center gap-3">
-        {existingCount > 0 && (
+        {hasActiveBoard && (
           <div className="flex items-center gap-3 text-xs text-zinc-400">
-            <span className="text-zinc-500">Re-import:</span>
+            <span className="text-zinc-500">Import to:</span>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="radio"
+                name="import-target"
+                checked={target === 'new'}
+                onChange={() => setTarget('new')}
+                className="accent-orange-500"
+              />
+              New list
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="radio"
+                name="import-target"
+                checked={target === 'active'}
+                onChange={() => setTarget('active')}
+                className="accent-orange-500"
+              />
+              Current list
+            </label>
+          </div>
+        )}
+
+        {hasActiveBoard && target === 'active' && existingCount > 0 && (
+          <div className="flex items-center gap-3 text-xs text-zinc-400">
+            <span className="text-zinc-500">Into current:</span>
             <label className="flex items-center gap-1 cursor-pointer">
               <input
                 type="radio"

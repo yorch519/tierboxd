@@ -1,26 +1,40 @@
 import { Film, Key, LogOut } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { useStore, useActiveBoard } from '../store/useStore';
 
 export function Header() {
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
-  const movies = useStore((s) => s.movies);
   const reset = useStore((s) => s.reset);
   const tmdbKey = useStore((s) => s.tmdbKey);
   const clearTmdbKey = useStore((s) => s.clearTmdbKey);
   const openKeyModal = useStore((s) => s.openKeyModal);
+  const activeBoard = useActiveBoard();
 
   return (
-    <header className="flex items-center justify-between px-6 py-3 border-b border-zinc-800 bg-zinc-950">
+    <header className="flex items-center justify-between gap-3 px-6 py-3 border-b border-zinc-800 bg-zinc-950">
       <button
-        onClick={() => setView('import')}
-        className="flex items-center gap-2 text-zinc-100 hover:text-orange-400 transition-colors"
+        onClick={() => setView('home')}
+        className="flex items-center gap-2 text-zinc-100 hover:text-orange-400 transition-colors shrink-0"
       >
         <Film className="w-6 h-6" />
         <span className="font-bold text-lg tracking-tight">Tierboxd</span>
       </button>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        {activeBoard && (
+          <button
+            onClick={() => setView('board')}
+            className={`max-w-[180px] truncate text-sm px-3 py-1.5 rounded-md transition-colors ${
+              view === 'board'
+                ? 'bg-orange-600 text-white'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+            }`}
+            title={activeBoard.name}
+          >
+            {activeBoard.name}
+          </button>
+        )}
+
         {tmdbKey ? (
           <>
             <span
@@ -50,23 +64,16 @@ export function Header() {
           </button>
         )}
 
-        {movies.length > 0 && (
-          <button
-            onClick={() => setView('board')}
-            className={`text-sm px-3 py-1.5 rounded-md transition-colors ${
-              view === 'board'
-                ? 'bg-orange-600 text-white'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
-            }`}
-          >
-            Tier Board
-          </button>
+        {activeBoard && (
+          <span className="text-xs text-zinc-600 hidden sm:inline">
+            {activeBoard.movies.length} films
+          </span>
         )}
-        {movies.length > 0 && (
-          <span className="text-xs text-zinc-600">{movies.length} films</span>
-        )}
+
         <button
-          onClick={() => { if (confirm('Reset all movies and tiers?')) reset(); }}
+          onClick={() => {
+            if (confirm('Delete all tier lists? This cannot be undone.')) reset();
+          }}
           className="text-xs text-zinc-600 hover:text-red-400 transition-colors"
         >
           Reset

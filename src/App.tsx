@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from './store/useStore';
 import { Header } from './components/Header';
 import { TmdbKeyModal } from './components/TmdbKeyModal';
+import { Home } from './components/Home';
 import { DataImport } from './components/DataImport';
 import { TierBoard } from './components/TierBoard';
 import { ExportPanel } from './components/ExportPanel';
@@ -14,6 +15,8 @@ export default function App() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <TmdbKeyModal />
       <Header />
+
+      {view === 'home' && <Home />}
 
       {view === 'import' && <DataImport />}
 

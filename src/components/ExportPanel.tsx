@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Download, AlertCircle, CheckCircle2, Image, BarChart3 } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { useActiveBoard } from '../store/useStore';
 import { generateLetterboxdCSV, downloadCSV } from '../lib/csvExporter';
 import { TMDB_IMAGE_ORIGIN, TMDB_IMAGE_PROXY } from '../lib/constants';
 
@@ -61,12 +61,14 @@ interface Props {
 }
 
 export function ExportPanel({ onToggleStats, statsVisible }: Props) {
-  const movies = useStore((s) => s.movies);
-  const tiers = useStore((s) => s.tiers);
-  const tierMovieIds = useStore((s) => s.tierMovies);
+  const board = useActiveBoard();
   const [copied, setCopied] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+
+  const movies = board?.movies ?? [];
+  const tiers = board?.tiers ?? [];
+  const tierMovieIds = board?.tierMovies ?? {};
 
   if (movies.length === 0) return null;
 

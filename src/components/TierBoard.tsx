@@ -10,12 +10,16 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { Plus } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { useStore, useActiveBoard } from '../store/useStore';
 import { TierRow } from './TierRow';
 import { MovieBank } from './MovieBank';
 import { MovieCard } from './MovieCard';
 import { StatsPanel } from './StatsPanel';
-import type { Movie } from '../types';
+import type { Movie, Tier, TierMovies } from '../types';
+
+const EMPTY_MOVIES: Movie[] = [];
+const EMPTY_TIERS: Tier[] = [];
+const EMPTY_TIER_MOVIES: TierMovies = {};
 
 interface Props {
   statsVisible: boolean;
@@ -23,12 +27,14 @@ interface Props {
 }
 
 export function TierBoard({ statsVisible, onCloseStats }: Props) {
-  const movies = useStore((s) => s.movies);
-  const tiers = useStore((s) => s.tiers);
-  const tierMovieIds = useStore((s) => s.tierMovies);
+  const board = useActiveBoard();
   const moveMovie = useStore((s) => s.moveMovie);
   const insertMovie = useStore((s) => s.insertMovie);
   const addTier = useStore((s) => s.addTier);
+
+  const movies = board?.movies ?? EMPTY_MOVIES;
+  const tiers = board?.tiers ?? EMPTY_TIERS;
+  const tierMovieIds = board?.tierMovies ?? EMPTY_TIER_MOVIES;
 
   const [activeMovie, setActiveMovie] = useState<Movie | null>(null);
 

@@ -14,10 +14,23 @@ export interface Tier {
   starRating: number;
 }
 
-export type AppView = 'import' | 'board';
+export type AppView = 'home' | 'import' | 'board';
 
 export type ImportMode = 'merge' | 'replace';
 
+export type TierTemplateId = 'stars' | 'sabcd' | 'numeric';
+
 export interface TierMovies {
   [tierId: string]: string[];
+}
+
+export interface Board {
+  id: string;
+  name: string;
+  origin: 'letterboxd' | 'manual';
+  movies: Movie[];
+  tiers: Tier[];
+  tierMovies: TierMovies;
+  createdAt: number;
+  updatedAt: number;
 }
