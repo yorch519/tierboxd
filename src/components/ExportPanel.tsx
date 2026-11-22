@@ -20,6 +20,41 @@ async function urlToDataUrl(url: string): Promise<string | null> {
   }
 }
 
+const posterDataCache = new Map<string, string>();
+
+function toProxyUrl(url: string): string {
+  const relativePath = url.replace(TMDB_IMAGE_ORIGIN, '').replace(/^\/+/, '');
+  return `${TMDB_IMAGE_PROXY}?path=${encodeURIComponent(relativePath)}`;
+}
+
+async function fetchPosterData(
+  urls: string[],
+  concurrency: number
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  const pending = urls.filter((url) => {
+    const cached = posterDataCache.get(url);
+    if (cached) result.set(url, cached);
+    return !cached;
+  });
+
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < pending.length) {
+      const url = pending[cursor++];
+      const dataUrl = await urlToDataUrl(toProxyUrl(url));
+      if (dataUrl) {
+        posterDataCache.set(url, dataUrl);
+        result.set(url, dataUrl);
+      }
+    }
+  };
+
+  const workerCount = Math.min(concurrency, pending.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return result;
+}
+
 interface Props {
   onToggleStats: () => void;
   statsVisible: boolean;
@@ -65,26 +100,12 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
     try {
       const { default: html2canvas } = await import('html2canvas');
 
-      const posterMap = new Map<string, string>();
-      const posterUrls = [...new Set(movies.filter((m) => m.posterUrl).map((m) => m.posterUrl!))];
-
-      const batchSize = 3;
-      for (let i = 0; i < posterUrls.length; i += batchSize) {
-        const batch = posterUrls.slice(i, i + batchSize);
-        await Promise.all(
-          batch.map(async (url) => {
-            try {
-              const relativePath = url.replace(TMDB_IMAGE_ORIGIN, '').replace(/^\/+/, '');
-              const proxyUrl = `${TMDB_IMAGE_PROXY}?path=${encodeURIComponent(relativePath)}`;
-              const dataUrl = await urlToDataUrl(proxyUrl);
-              if (dataUrl) posterMap.set(url, dataUrl);
-            } catch { /* skip */ }
-          })
-        );
-        if (i + batchSize < posterUrls.length) {
-          await new Promise((r) => setTimeout(r, 200));
-        }
-      }
+      const imageUrls = [...new Set(
+        Array.from(el.querySelectorAll('img'))
+          .map((img) => img.getAttribute('src'))
+          .filter((src): src is string => Boolean(src))
+      )];
+      const posterMap = await fetchPosterData(imageUrls, 10);
 
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
@@ -112,8 +133,8 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
             const key = computed[i];
             if (key.startsWith('--')) continue;
             let val = computed.getPropertyValue(key);
-            if (/\boklch\b|\boklab\b/i.test(val)) {
-              val = val.replace(/\boklch\b|\boklab\b/gi, 'srgb');
+            if (val.includes('oklch') || val.includes('oklab')) {
+              val = val.replace(/oklch|oklab/gi, 'srgb');
             }
             parts.push(`${key}: ${val}`);
           }
