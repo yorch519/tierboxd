@@ -92,18 +92,6 @@ npm run lint     # run oxlint
 npm run preview  # preview the production build
 ```
 
-## Roadmap
-
-- [x] Letterboxd import and automatic tier assignment
-- [x] Multiple lists and tier templates
-- [x] TMDB search and browse by year
-- [x] PNG, CSV and JSON export
-- [x] Server-side TMDB proxy with caching and rate limiting
-- [ ] Undo/redo and bulk actions
-- [ ] Keyboard and mobile support
-- [ ] Automated tests and CI
-- [ ] Offline poster cache (PWA)
-
 ## Credits & attribution
 
 This product uses the [TMDB API](https://www.themoviedb.org/) but is not endorsed or certified by TMDB. Tierboxd is not affiliated with Letterboxd.
