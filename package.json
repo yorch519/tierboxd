@@ -1,8 +1,25 @@
 {
-  "name": "nuevo-proyecto",
+  "name": "tierboxd",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Turn your Letterboxd ratings into tier lists, or build movie tier lists from scratch. Privacy-first, with a server-side TMDB proxy.",
   "type": "module",
+  "license": "MIT",
+  "author": "yorch519",
+  "homepage": "https://tierboxd.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yorch519/tierboxd.git"
+  },
+  "keywords": [
+    "tier-list",
+    "letterboxd",
+    "movies",
+    "tmdb",
+    "react",
+    "vite",
+    "typescript"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

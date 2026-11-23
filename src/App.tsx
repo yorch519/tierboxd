@@ -6,6 +6,7 @@ import { Home } from './components/Home';
 import { DataImport } from './components/DataImport';
 import { TierBoard } from './components/TierBoard';
 import { ExportPanel } from './components/ExportPanel';
+import { Footer } from './components/Footer';
 
 export default function App() {
   const view = useStore((s) => s.view);
@@ -32,6 +33,8 @@ export default function App() {
           />
         </>
       )}
+
+      <Footer />
     </div>
   );
 }
