@@ -24,6 +24,7 @@ interface AppState {
   tmdbKey: string | null;
   view: AppView;
   keyModalOpen: boolean;
+  selectedMovieIds: string[];
 
   setTmdbKey: (key: string) => void;
   clearTmdbKey: () => void;
@@ -49,7 +50,11 @@ interface AppState {
   setPosterForBoard: (boardId: string, movieId: string, posterUrl: string | null) => void;
   setMovieTmdbId: (id: string, tmdbId: string) => void;
   moveMovie: (movieId: string, toTierId: string | null) => void;
+  moveMovies: (movieIds: string[], toTierId: string | null) => void;
   insertMovie: (movieId: string, tierId: string, beforeMovieId?: string) => void;
+  removeMovies: (movieIds: string[]) => void;
+  toggleMovieSelection: (movieId: string) => void;
+  clearMovieSelection: () => void;
   updateTier: (tierId: string, updates: Partial<Tier>) => void;
   addTier: () => void;
   removeTier: (tierId: string) => void;
@@ -261,6 +266,7 @@ export const useStore = create<AppState>((set, get) => {
     tmdbKey: localStorage.getItem(LS_KEYS.TMDB_KEY) ?? null,
     view: initial.view,
     keyModalOpen: false,
+    selectedMovieIds: [],
 
     setTmdbKey: (key) => {
       localStorage.setItem(LS_KEYS.TMDB_KEY, key);
@@ -287,11 +293,15 @@ export const useStore = create<AppState>((set, get) => {
         createdAt: now,
         updatedAt: now,
       };
-      set((state) => ({ boards: [...state.boards, board], activeBoardId: board.id }));
+      set((state) => ({
+        boards: [...state.boards, board],
+        activeBoardId: board.id,
+        selectedMovieIds: [],
+      }));
       return board.id;
     },
 
-    setActiveBoard: (id) => set({ activeBoardId: id }),
+    setActiveBoard: (id) => set({ activeBoardId: id, selectedMovieIds: [] }),
 
     renameBoard: (id, name) => {
       const trimmed = name.trim();
@@ -322,7 +332,11 @@ export const useStore = create<AppState>((set, get) => {
         updatedAt: now,
       };
 
-      set((state) => ({ boards: [...state.boards, copy], activeBoardId: copy.id }));
+      set((state) => ({
+        boards: [...state.boards, copy],
+        activeBoardId: copy.id,
+        selectedMovieIds: [],
+      }));
       return copy.id;
     },
 
@@ -338,6 +352,7 @@ export const useStore = create<AppState>((set, get) => {
           activeBoardId,
           history,
           view: boards.length === 0 ? 'home' : state.view,
+          selectedMovieIds: [],
         };
       });
     },
@@ -362,7 +377,11 @@ export const useStore = create<AppState>((set, get) => {
         updatedAt: now,
       };
 
-      set((state) => ({ boards: [...state.boards, imported], activeBoardId: imported.id }));
+      set((state) => ({
+        boards: [...state.boards, imported],
+        activeBoardId: imported.id,
+        selectedMovieIds: [],
+      }));
       return true;
     },
 
@@ -389,6 +408,7 @@ export const useStore = create<AppState>((set, get) => {
 
         return { ...board, movies: [...byId.values()] };
       });
+      set({ selectedMovieIds: [] });
     },
 
     seedTiersFromRatings: (options) => {
@@ -504,6 +524,56 @@ export const useStore = create<AppState>((set, get) => {
       });
     },
 
+    moveMovies: (movieIds, toTierId) => {
+      const selected = new Set(movieIds);
+      if (selected.size === 0) return;
+
+      patchBoard((board) => {
+        const orderedIds = board.movies
+          .filter((movie) => selected.has(movie.id))
+          .map((movie) => movie.id);
+        if (orderedIds.length === 0) return board;
+
+        const next: TierMovies = {};
+        for (const [tierId, ids] of Object.entries(board.tierMovies)) {
+          next[tierId] = ids.filter((id) => !selected.has(id));
+        }
+        if (toTierId) {
+          next[toTierId] = [...(next[toTierId] ?? []), ...orderedIds];
+        }
+        return { ...board, tierMovies: next };
+      });
+      set({ selectedMovieIds: [] });
+    },
+
+    removeMovies: (movieIds) => {
+      const selected = new Set(movieIds);
+      if (selected.size === 0) return;
+
+      patchBoard((board) => {
+        const tierMovies: TierMovies = {};
+        for (const [tierId, ids] of Object.entries(board.tierMovies)) {
+          tierMovies[tierId] = ids.filter((id) => !selected.has(id));
+        }
+        return {
+          ...board,
+          movies: board.movies.filter((movie) => !selected.has(movie.id)),
+          tierMovies,
+        };
+      });
+      set({ selectedMovieIds: [] });
+    },
+
+    toggleMovieSelection: (movieId) => {
+      set((state) => ({
+        selectedMovieIds: state.selectedMovieIds.includes(movieId)
+          ? state.selectedMovieIds.filter((id) => id !== movieId)
+          : [...state.selectedMovieIds, movieId],
+      }));
+    },
+
+    clearMovieSelection: () => set({ selectedMovieIds: [] }),
+
     insertMovie: (movieId, tierId, beforeMovieId) => {
       patchBoard((board) => {
         const next: TierMovies = {};
@@ -567,7 +637,7 @@ export const useStore = create<AppState>((set, get) => {
       });
     },
 
-    setView: (view) => set({ view }),
+    setView: (view) => set({ view, selectedMovieIds: [] }),
 
     undo: () => {
       const { boards, activeBoardId, history } = get();
@@ -637,7 +707,7 @@ export const useStore = create<AppState>((set, get) => {
 
     reset: () => {
       localStorage.removeItem(LS_KEYS.STATE);
-      set({ boards: [], activeBoardId: null, view: 'home', history: {} });
+      set({ boards: [], activeBoardId: null, view: 'home', history: {}, selectedMovieIds: [] });
     },
   };
 });

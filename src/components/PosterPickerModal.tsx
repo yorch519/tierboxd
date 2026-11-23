@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Image as ImageIcon, Loader2, Search, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import { searchMovieCustom, fetchPoster, type TmdbResult } from '../lib/tmdb';
 import type { Movie } from '../types';
 
@@ -19,6 +20,8 @@ export function PosterPickerModal({ movie, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEscapeKey(onClose);
 
   useEffect(() => {
     if (!query.trim()) return;
@@ -47,6 +50,9 @@ export function PosterPickerModal({ movie, onClose }: Props) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Change poster for ${movie.title}`}
     >
       <div
         className="card flex max-h-[80vh] w-full max-w-lg flex-col shadow-2xl"

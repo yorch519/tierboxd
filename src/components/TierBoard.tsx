@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   pointerWithin,
   useSensor,
   useSensors,
@@ -12,11 +13,13 @@ import {
 import { LayoutGrid, Plus, Redo2, Undo2 } from 'lucide-react';
 import { useStore, useActiveBoard } from '../store/useStore';
 import { useUndoShortcuts } from '../hooks/useUndoShortcuts';
+import { useSelectionShortcuts } from '../hooks/useSelectionShortcuts';
 import { TierRow } from './TierRow';
 import { MovieBank } from './MovieBank';
 import { MovieSearchPanel } from './MovieSearchPanel';
 import { MovieCard } from './MovieCard';
 import { StatsPanel } from './StatsPanel';
+import { SelectionBar } from './SelectionBar';
 import type { Movie, Tier, TierMovies } from '../types';
 
 const EMPTY_MOVIES: Movie[] = [];
@@ -35,6 +38,7 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
   const addTier = useStore((s) => s.addTier);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
+  const clearMovieSelection = useStore((s) => s.clearMovieSelection);
   const history = useStore((s) => s.history);
   const activeBoardId = useStore((s) => s.activeBoardId);
 
@@ -46,6 +50,7 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
     : false;
 
   useUndoShortcuts(undo, redo);
+  useSelectionShortcuts(clearMovieSelection);
 
   const movies = board?.movies ?? EMPTY_MOVIES;
   const tiers = board?.tiers ?? EMPTY_TIERS;
@@ -54,8 +59,11 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
   const [activeMovie, setActiveMovie] = useState<Movie | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: { distance: 5 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 6 },
     })
   );
 
@@ -126,11 +134,11 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="mx-auto max-w-7xl space-y-5 px-5 py-8">
+      <div className="mx-auto max-w-7xl space-y-4 px-3 py-6 sm:space-y-5 sm:px-5 sm:py-8">
         <MovieSearchPanel />
 
         <div id="tier-list-container" className="card overflow-hidden">
-          <div data-export-hide className="panel-header">
+          <div data-export-hide className="panel-header flex-wrap">
             <div className="flex items-center gap-2.5">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500/15 text-accent-400">
                 <LayoutGrid className="h-4 w-4" strokeWidth={2.2} />
@@ -204,6 +212,8 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
 
         <MovieBank movies={unassigned} />
       </div>
+
+      <SelectionBar />
 
       <DragOverlay dropAnimation={null}>
         {activeMovie ? (

@@ -106,7 +106,7 @@ export function MovieSearchPanel() {
 
   return (
     <div className="card overflow-hidden">
-      <div className="panel-header">
+      <div className="panel-header flex-wrap gap-2">
         <div className="flex items-center gap-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500/15 text-accent-400">
             <Search className="h-4 w-4" strokeWidth={2.2} />
@@ -142,11 +142,11 @@ export function MovieSearchPanel() {
         </div>
       </div>
 
-      <div className="p-4">
+      <div className="p-3 sm:p-4">
         {mode === 'search' ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <div className="relative flex-1">
+              <div className="relative min-w-0 flex-1">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
                   strokeWidth={2.2}
@@ -159,6 +159,7 @@ export function MovieSearchPanel() {
                     if (e.key === 'Escape') clearQuery();
                   }}
                   placeholder="Search a film or show..."
+                  aria-label="Search a film or show"
                   className="input pl-9 pr-9"
                 />
                 {query.length > 0 && (

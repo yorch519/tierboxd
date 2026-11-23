@@ -33,8 +33,16 @@ export function Footer() {
           </p>
         </div>
 
-        <a href={repoUrl} target="_blank" rel="noopener noreferrer" className="btn btn-surface">
-          <Star className="h-4 w-4" strokeWidth={2.2} />
+        <a
+          href={repoUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn-surface group"
+        >
+          <Star
+            className="h-4 w-4 transition-colors group-hover:fill-yellow-400 group-hover:text-yellow-400"
+            strokeWidth={2.2}
+          />
           Check out the repo
         </a>
       </div>

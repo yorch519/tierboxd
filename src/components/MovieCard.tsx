@@ -2,9 +2,11 @@ import { useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { Pencil } from 'lucide-react';
+import { ArrowRightLeft, Check, Pencil } from 'lucide-react';
 import type { Movie } from '../types';
+import { useStore } from '../store/useStore';
 import { PosterPickerModal } from './PosterPickerModal';
+import { MoveToMenu } from './MoveToMenu';
 
 interface Props {
   movie: Movie;
@@ -12,6 +14,9 @@ interface Props {
 
 export function MovieCard({ movie }: Props) {
   const [showPicker, setShowPicker] = useState(false);
+  const [showMove, setShowMove] = useState(false);
+  const selected = useStore((s) => s.selectedMovieIds.includes(movie.id));
+  const toggleMovieSelection = useStore((s) => s.toggleMovieSelection);
 
   const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
     id: movie.id,
@@ -31,6 +36,39 @@ export function MovieCard({ movie }: Props) {
     [setDragRef, setDropRef]
   );
 
+  const {
+    onMouseDown: dragMouseDown,
+    onPointerDown: dragPointerDown,
+    ...dragListeners
+  } = listeners ?? {};
+
+  const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleMovieSelection(movie.id);
+      return;
+    }
+
+    dragMouseDown?.(event);
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+
+    if (event.ctrlKey || event.metaKey) {
+      if (!dragPointerDown) return;
+      event.preventDefault();
+      event.stopPropagation();
+      toggleMovieSelection(movie.id);
+      return;
+    }
+
+    dragPointerDown?.(event);
+  };
+
   const style = {
     transform: CSS.Translate.toString(transform),
     zIndex: isDragging ? 50 : undefined,
@@ -41,15 +79,19 @@ export function MovieCard({ movie }: Props) {
       ref={setNodeRef}
       style={style}
       title={movie.title}
-      {...listeners}
+      {...dragListeners}
       {...attributes}
+      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
       className={`group relative flex w-[104px] shrink-0 cursor-grab flex-col overflow-hidden rounded-xl
                   border border-zinc-800/80 bg-zinc-900 shadow-sm transition-all duration-150
                   active:cursor-grabbing
                   ${isDragging ? 'scale-95 opacity-40' : ''}
-                  ${isOver
-                    ? 'ring-2 ring-accent-400'
-                    : 'hover:-translate-y-0.5 hover:border-accent-500/40 hover:ring-1 hover:ring-accent-500/30'
+                  ${selected
+                    ? ''
+                    : isOver
+                      ? 'ring-2 ring-accent-400'
+                      : 'hover:-translate-y-0.5 hover:border-accent-500/40 hover:ring-1 hover:ring-accent-500/30'
                   }`}
     >
       {movie.posterUrl ? (
@@ -72,19 +114,61 @@ export function MovieCard({ movie }: Props) {
         </div>
       )}
 
-      <button
+      <div
         data-export-hide
-        onClick={(e) => {
-          e.stopPropagation();
-          setShowPicker(true);
-        }}
-        className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md
-                   border border-white/10 bg-black/60 text-zinc-300 opacity-0 backdrop-blur-sm
-                   transition-all hover:bg-black/80 hover:text-accent-300 group-hover:opacity-100"
-        title="Change poster"
+        className="absolute right-1.5 top-1.5 z-10 flex flex-col gap-1"
       >
-        <Pencil className="h-3 w-3" strokeWidth={2.4} />
-      </button>
+        <button
+          type="button"
+          data-export-hide
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowMove(true);
+          }}
+          className="flex h-6 w-6 items-center justify-center rounded-md border border-white/10 bg-black/60
+                     text-zinc-300 opacity-100 backdrop-blur-sm transition-all hover:bg-black/80
+                     hover:text-accent-300 focus-visible:opacity-100
+                     [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+          title="Move to…"
+          aria-label={`Move ${movie.title} to a tier`}
+        >
+          <ArrowRightLeft className="h-3 w-3" strokeWidth={2.4} />
+        </button>
+
+        <button
+          type="button"
+          data-export-hide
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowPicker(true);
+          }}
+          className="flex h-6 w-6 items-center justify-center rounded-md border border-white/10 bg-black/60
+                     text-zinc-300 opacity-100 backdrop-blur-sm transition-all hover:bg-black/80
+                     hover:text-accent-300 focus-visible:opacity-100
+                     [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+          title="Change poster"
+          aria-label={`Change poster for ${movie.title}`}
+        >
+          <Pencil className="h-3 w-3" strokeWidth={2.4} />
+        </button>
+      </div>
+
+      {selected && (
+        <>
+          <div
+            data-export-hide
+            className="pointer-events-none absolute inset-0 z-10 rounded-xl ring-2 ring-accent-400"
+          />
+          <div
+            data-export-hide
+            className="pointer-events-none absolute left-1.5 top-1.5 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-accent-500 text-zinc-950 shadow-lg ring-2 ring-zinc-950/60"
+          >
+            <Check className="h-3.5 w-3.5" strokeWidth={3} />
+          </div>
+        </>
+      )}
 
       {isOver && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center">
@@ -112,6 +196,11 @@ export function MovieCard({ movie }: Props) {
 
       {showPicker && createPortal(
         <PosterPickerModal movie={movie} onClose={() => setShowPicker(false)} />,
+        document.body
+      )}
+
+      {showMove && createPortal(
+        <MoveToMenu movie={movie} onClose={() => setShowMove(false)} />,
         document.body
       )}
     </div>

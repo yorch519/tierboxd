@@ -36,12 +36,12 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex min-h-[132px] items-stretch transition-colors ${
+      className={`flex min-h-[112px] items-stretch transition-colors sm:min-h-[132px] ${
         isOver && !isOverlay ? 'bg-accent-500/[0.06]' : ''
       }`}
     >
       <div
-        className="flex w-[136px] shrink-0 flex-col items-center justify-center gap-1 border-r border-zinc-800/70 p-3"
+        className="flex w-[112px] shrink-0 flex-col items-center justify-center gap-1 border-r border-zinc-800/70 p-2 sm:w-[136px] sm:p-3"
         style={{ backgroundColor: `${color}14`, boxShadow: `inset 3px 0 0 ${color}` }}
       >
         {editing ? (
@@ -50,6 +50,7 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="input px-2 py-1 text-center text-sm"
+              aria-label="Tier name"
               autoFocus
             />
             <div className="flex items-center gap-1.5">
@@ -59,6 +60,7 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
                 onChange={(e) => setColor(e.target.value)}
                 className="h-7 w-7 cursor-pointer rounded-md border border-zinc-700 bg-transparent p-0.5"
                 title="Tier color"
+                aria-label="Tier color"
               />
               <input
                 type="number"
@@ -67,8 +69,9 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
                 step={0.5}
                 min={0.5}
                 max={5}
-                className="input w-16 px-1 py-0.5 text-center text-xs"
+                className="input w-14 px-1 py-0.5 text-center text-xs"
                 title="Star rating for CSV export"
+                aria-label="Star rating for CSV export"
               />
             </div>
             <div className="flex items-center gap-1">
@@ -79,6 +82,7 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
                 onClick={() => setEditing(false)}
                 className="icon-btn h-7 w-7"
                 title="Cancel"
+                aria-label="Cancel editing tier"
               >
                 <X className="h-3.5 w-3.5" strokeWidth={2.4} />
               </button>
@@ -87,12 +91,12 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
         ) : (
           <>
             <span
-              className="font-display text-2xl font-semibold leading-none"
+              className="font-display text-xl font-semibold leading-none sm:text-2xl"
               style={{ color }}
             >
               {tier.name}
             </span>
-            <span className="mt-2 text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+            <span className="mt-2 text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500 sm:text-[11px]">
               {movies.length} films
             </span>
             <div data-export-hide className="mt-1 flex items-center gap-0.5">
@@ -105,6 +109,7 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
                 }}
                 className="icon-btn h-6 w-6"
                 title="Edit tier"
+                aria-label={`Edit tier ${tier.name}`}
               >
                 <Settings2 className="h-3.5 w-3.5" strokeWidth={2.2} />
               </button>
@@ -112,6 +117,7 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
                 onClick={() => removeTier(tier.id)}
                 className="icon-btn h-6 w-6 hover:text-red-400"
                 title="Remove tier"
+                aria-label={`Remove tier ${tier.name}`}
               >
                 <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
               </button>
@@ -120,7 +126,7 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
         )}
       </div>
 
-      <div className="flex flex-1 flex-wrap items-center gap-2.5 p-3">
+      <div className="flex flex-1 flex-wrap items-center gap-2 p-2 sm:gap-2.5 sm:p-3">
         {movies.length === 0 &&
           (isOver ? (
             <p className="animate-pulse whitespace-nowrap px-2 text-xs font-semibold text-accent-300">

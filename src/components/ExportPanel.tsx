@@ -212,9 +212,9 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-5 pb-10">
+    <div className="mx-auto max-w-7xl px-3 pb-8 sm:px-5 sm:pb-10">
       <div className="card overflow-hidden">
-        <div className="panel-header">
+        <div className="panel-header flex-wrap gap-2">
           <div className="flex items-center gap-2.5">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500/15 text-accent-400">
               <Download className="h-4 w-4" strokeWidth={2.2} />
@@ -228,7 +228,7 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
           </span>
         </div>
 
-        <div className="space-y-4 p-5">
+        <div className="space-y-4 p-4 sm:p-5">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 px-3 py-3">
               <div className="font-display text-2xl font-semibold text-zinc-100">

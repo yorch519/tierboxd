@@ -13,26 +13,28 @@ export default function App() {
   const [statsVisible, setStatsVisible] = useState(false);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="flex min-h-screen flex-col bg-zinc-950 text-zinc-100">
       <TmdbKeyModal />
       <Header />
 
-      {view === 'home' && <Home />}
+      <main className="flex-1">
+        {view === 'home' && <Home />}
 
-      {view === 'import' && <DataImport />}
+        {view === 'import' && <DataImport />}
 
-      {view === 'board' && (
-        <>
-          <TierBoard
-            statsVisible={statsVisible}
-            onCloseStats={() => setStatsVisible(false)}
-          />
-          <ExportPanel
-            statsVisible={statsVisible}
-            onToggleStats={() => setStatsVisible((v) => !v)}
-          />
-        </>
-      )}
+        {view === 'board' && (
+          <>
+            <TierBoard
+              statsVisible={statsVisible}
+              onCloseStats={() => setStatsVisible(false)}
+            />
+            <ExportPanel
+              statsVisible={statsVisible}
+              onToggleStats={() => setStatsVisible((v) => !v)}
+            />
+          </>
+        )}
+      </main>
 
       <Footer />
     </div>

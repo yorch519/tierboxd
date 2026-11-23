@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Key, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import { isValidTmdbKey } from '../lib/tmdb';
 
 export function TmdbKeyModal() {
@@ -9,6 +10,8 @@ export function TmdbKeyModal() {
   const setTmdbKey = useStore((s) => s.setTmdbKey);
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
+
+  useEscapeKey(closeKeyModal, keyModalOpen);
 
   if (!keyModalOpen) return null;
 
@@ -31,6 +34,9 @@ export function TmdbKeyModal() {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
       onClick={closeKeyModal}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Use your own TMDB key"
     >
       <div className="card w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">

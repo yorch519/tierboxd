@@ -20,7 +20,7 @@ export function StatsPanel({ tiers, tierMovieIds, totalMovies, onClose }: Props)
 
   return (
     <div className="card overflow-hidden">
-      <div className="panel-header">
+      <div className="panel-header flex-wrap gap-2">
         <div className="flex items-center gap-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500/15 text-accent-400">
             <BarChart3 className="h-4 w-4" strokeWidth={2.2} />
@@ -34,7 +34,7 @@ export function StatsPanel({ tiers, tierMovieIds, totalMovies, onClose }: Props)
         </button>
       </div>
 
-      <div className="space-y-2.5 p-5">
+      <div className="space-y-2.5 p-4 sm:p-5">
         {tiers.map((tier) => {
           const count = (tierMovieIds[tier.id] ?? []).length;
           const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;

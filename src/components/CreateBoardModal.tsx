@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { LayoutTemplate, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import { TIER_TEMPLATES, TIER_TEMPLATE_ORDER } from '../lib/tierTemplates';
 import type { TierTemplateId } from '../types';
 
@@ -14,6 +15,8 @@ export function CreateBoardModal({ onClose }: Props) {
   const [name, setName] = useState('');
   const [template, setTemplate] = useState<TierTemplateId>('stars');
 
+  useEscapeKey(onClose);
+
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     createBoard(name || 'Untitled list', template, 'manual');
@@ -25,6 +28,9 @@ export function CreateBoardModal({ onClose }: Props) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="New tier list"
     >
       <div className="card w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">

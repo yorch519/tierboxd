@@ -72,7 +72,7 @@ export function MovieBank({ movies }: Props) {
         <span className="label-caps hidden sm:inline">Drag into a tier</span>
       </div>
 
-      <div className="space-y-3 p-4">
+      <div className="space-y-3 p-3 sm:p-4">
         {movies.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[180px] flex-1">
