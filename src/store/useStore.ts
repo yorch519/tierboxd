@@ -31,6 +31,7 @@ interface AppState {
   renameBoard: (id: string, name: string) => void;
   duplicateBoard: (id: string) => string | null;
   deleteBoard: (id: string) => void;
+  importBoard: (raw: unknown) => boolean;
 
   importMovies: (incoming: Movie[], mode: ImportMode) => void;
   seedTiersFromRatings: (options?: { onlyUnassigned?: boolean }) => void;
@@ -301,6 +302,30 @@ export const useStore = create<AppState>((set, get) => {
           view: boards.length === 0 ? 'home' : state.view,
         };
       });
+    },
+
+    importBoard: (raw) => {
+      const record =
+        raw && typeof raw === 'object' ? { ...(raw as Record<string, unknown>) } : null;
+      if (!record) return false;
+
+      if (typeof record.id !== 'string') {
+        record.id = `imported-${Date.now()}`;
+      }
+
+      const board = normalizeBoard(record);
+      if (!board) return false;
+
+      const now = Date.now();
+      const imported: Board = {
+        ...board,
+        id: `board-${now}-${Math.random().toString(36).slice(2, 8)}`,
+        name: board.name.trim() || 'Imported list',
+        updatedAt: now,
+      };
+
+      set((state) => ({ boards: [...state.boards, imported], activeBoardId: imported.id }));
+      return true;
     },
 
     importMovies: (incoming, mode) => {

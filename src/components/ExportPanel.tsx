@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Download, AlertCircle, CheckCircle2, Image, BarChart3, Loader2 } from 'lucide-react';
+import { Download, AlertCircle, CheckCircle2, Image, BarChart3, Loader2, FileJson } from 'lucide-react';
 import { useActiveBoard } from '../store/useStore';
 import { generateLetterboxdCSV, downloadCSV } from '../lib/csvExporter';
+import { downloadBoardJson } from '../lib/boardJson';
+import { ImportBoardButton } from './ImportBoardButton';
 import { TMDB_IMAGE_ORIGIN, TMDB_IMAGE_PROXY } from '../lib/constants';
 
 async function urlToDataUrl(url: string): Promise<string | null> {
@@ -93,6 +95,10 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
     downloadCSV(csv);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleExportJson = () => {
+    if (board) downloadBoardJson(board);
   };
 
   const handleSaveImage = async () => {
@@ -332,6 +338,25 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
               </>
             )}
           </button>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
+            <div>
+              <p className="text-xs font-semibold text-zinc-300">Backup & share</p>
+              <p className="text-[11px] text-zinc-600">
+                Download this list as JSON, or import one.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleExportJson}
+                className="btn btn-ghost px-2.5 py-1.5 text-xs"
+              >
+                <FileJson className="h-3.5 w-3.5" strokeWidth={2.2} />
+                Export JSON
+              </button>
+              <ImportBoardButton className="btn btn-ghost px-2.5 py-1.5 text-xs" />
+            </div>
+          </div>
         </div>
       </div>
     </div>

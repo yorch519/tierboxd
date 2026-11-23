@@ -3,8 +3,19 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
 const TMDB_ORIGIN = 'https://api.themoviedb.org/3';
-const ALLOWED_PATH = /^(?:search\/movie|search\/tv|movie\/\d+|tv\/\d+)$/;
+const ALLOWED_PATH = /^(?:search\/movie|search\/tv|movie\/\d+|tv\/\d+|discover\/movie)$/;
 const TMDB_KEY_PATTERN = /^[a-f0-9]{32,64}$/i;
+
+const DISCOVER_PARAMS = new Set([
+  'page',
+  'primary_release_year',
+  'with_genres',
+  'with_original_language',
+  'region',
+  'sort_by',
+  'vote_count.gte',
+]);
+const DISCOVER_SORTS = new Set(['popularity.desc', 'vote_average.desc', 'vote_count.desc']);
 
 let limiter: Ratelimit | null = null;
 const ephemeralCache = new Map<string, number>();
@@ -110,9 +121,47 @@ export default async function handler(
     }
   }
 
-  const upstream = new URL(`${TMDB_ORIGIN}/${path}`);
+  const isDiscover = path.startsWith('discover/');
+  const forwarded = new URLSearchParams();
   for (const [key, value] of url.searchParams) {
     if (key === 'path' || key === 'api_key') continue;
+    if (isDiscover && !DISCOVER_PARAMS.has(key)) continue;
+    forwarded.append(key, value);
+  }
+
+  if (isDiscover) {
+    const pageValue = Math.floor(Number(forwarded.get('page') ?? '1'));
+    forwarded.set(
+      'page',
+      String(Number.isFinite(pageValue) ? Math.min(500, Math.max(1, pageValue)) : 1)
+    );
+
+    if (forwarded.has('primary_release_year')) {
+      const yearValue = Number(forwarded.get('primary_release_year'));
+      if (Number.isFinite(yearValue) && yearValue >= 1888 && yearValue <= 2100) {
+        forwarded.set('primary_release_year', String(Math.floor(yearValue)));
+      } else {
+        forwarded.delete('primary_release_year');
+      }
+    }
+
+    const sort = forwarded.get('sort_by');
+    forwarded.set('sort_by', sort && DISCOVER_SORTS.has(sort) ? sort : 'popularity.desc');
+
+    const genres = forwarded.get('with_genres');
+    if (genres && !/^\d+(,\d+)*$/.test(genres)) forwarded.delete('with_genres');
+
+    for (const key of ['with_original_language', 'region']) {
+      const value = forwarded.get(key);
+      if (value && !/^[A-Za-z]{2}$/.test(value)) forwarded.delete(key);
+    }
+
+    const votes = forwarded.get('vote_count.gte');
+    if (votes && !/^\d+$/.test(votes)) forwarded.delete('vote_count.gte');
+  }
+
+  const upstream = new URL(`${TMDB_ORIGIN}/${path}`);
+  for (const [key, value] of forwarded) {
     upstream.searchParams.append(key, value);
   }
   upstream.searchParams.set('api_key', apiKey);
@@ -129,10 +178,11 @@ export default async function handler(
       upstreamRes.headers.get('content-type') ?? 'application/json; charset=utf-8'
     );
     const cacheable = !ownKey && upstreamRes.status === 200;
+    const cacheSeconds = path.startsWith('discover/') ? 86400 : 604800;
     res.setHeader(
       'Cache-Control',
       cacheable
-        ? 'public, s-maxage=604800, stale-while-revalidate=86400'
+        ? `public, s-maxage=${cacheSeconds}, stale-while-revalidate=86400`
         : 'no-store'
     );
     res.end(body);

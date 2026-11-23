@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Film, Plus, Upload, Copy, Pencil, Trash2 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { CreateBoardModal } from './CreateBoardModal';
+import { ImportBoardButton } from './ImportBoardButton';
 import type { Board } from '../types';
 
 function assignedCount(board: Board): number {
@@ -87,6 +88,7 @@ export function Home() {
             <Upload className="h-4 w-4" strokeWidth={2.2} />
             Import Letterboxd
           </button>
+          <ImportBoardButton className="btn btn-ghost" />
         </div>
       </div>
 
@@ -110,6 +112,7 @@ export function Home() {
               <Upload className="h-4 w-4" strokeWidth={2.2} />
               Import Letterboxd
             </button>
+            <ImportBoardButton className="btn btn-ghost" />
           </div>
         </div>
       ) : (

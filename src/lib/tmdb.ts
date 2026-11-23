@@ -293,6 +293,66 @@ export async function searchTitles(
   }
 }
 
+export type DiscoverSort = 'popularity.desc' | 'vote_average.desc' | 'vote_count.desc';
+
+export interface DiscoverOptions {
+  year?: number;
+  sort?: DiscoverSort;
+  page?: number;
+  minVotes?: number;
+  genreIds?: number[];
+}
+
+export interface DiscoverResult {
+  results: TmdbResult[];
+  page: number;
+  totalPages: number;
+}
+
+export async function discoverMovies(
+  options: DiscoverOptions = {},
+  apiKey?: string | null,
+  signal?: AbortSignal
+): Promise<DiscoverResult> {
+  try {
+    const sort = options.sort ?? 'popularity.desc';
+    const minVotes =
+      options.minVotes ??
+      (sort === 'vote_average.desc' ? (options.year ? 1000 : 5000) : 50);
+
+    const params = new URLSearchParams();
+    params.set('sort_by', sort);
+    params.set('page', String(options.page ?? 1));
+    params.set('vote_count.gte', String(minVotes));
+    if (options.year) params.set('primary_release_year', String(options.year));
+    if (options.genreIds?.length) params.set('with_genres', options.genreIds.join(','));
+
+    const res = await tmdbFetch('discover/movie', params, apiKey, signal);
+    if (!res.ok) return { results: [], page: 1, totalPages: 0 };
+
+    const data = await res.json();
+    const results: TmdbResult[] = (data.results || []).map(
+      (m: Record<string, unknown>) => ({
+        tmdbId: String(m.id),
+        title: (m.title as string) || '',
+        year: m.release_date ? parseInt(String(m.release_date).slice(0, 4), 10) : 0,
+        posterUrl: m.poster_path ? `${TMDB_POSTER_BASE}${m.poster_path}` : null,
+      })
+    );
+
+    return {
+      results,
+      page: typeof data.page === 'number' ? data.page : 1,
+      totalPages: Math.min(
+        typeof data.total_pages === 'number' ? data.total_pages : 0,
+        500
+      ),
+    };
+  } catch {
+    return { results: [], page: 1, totalPages: 0 };
+  }
+}
+
 export async function fetchPoster(
   tmdbId: string,
   apiKey?: string | null,
