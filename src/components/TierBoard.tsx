@@ -9,8 +9,9 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { LayoutGrid, Plus } from 'lucide-react';
+import { LayoutGrid, Plus, Redo2, Undo2 } from 'lucide-react';
 import { useStore, useActiveBoard } from '../store/useStore';
+import { useUndoShortcuts } from '../hooks/useUndoShortcuts';
 import { TierRow } from './TierRow';
 import { MovieBank } from './MovieBank';
 import { MovieSearchPanel } from './MovieSearchPanel';
@@ -32,6 +33,19 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
   const moveMovie = useStore((s) => s.moveMovie);
   const insertMovie = useStore((s) => s.insertMovie);
   const addTier = useStore((s) => s.addTier);
+  const undo = useStore((s) => s.undo);
+  const redo = useStore((s) => s.redo);
+  const history = useStore((s) => s.history);
+  const activeBoardId = useStore((s) => s.activeBoardId);
+
+  const canUndo = activeBoardId
+    ? (history[activeBoardId]?.past.length ?? 0) > 0
+    : false;
+  const canRedo = activeBoardId
+    ? (history[activeBoardId]?.future.length ?? 0) > 0
+    : false;
+
+  useUndoShortcuts(undo, redo);
 
   const movies = board?.movies ?? EMPTY_MOVIES;
   const tiers = board?.tiers ?? EMPTY_TIERS;
@@ -126,6 +140,26 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
               </h2>
             </div>
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={undo}
+                  disabled={!canUndo}
+                  className="icon-btn disabled:pointer-events-none disabled:opacity-40"
+                  title="Undo (Ctrl/Cmd+Z)"
+                  aria-label="Undo"
+                >
+                  <Undo2 className="h-4 w-4" strokeWidth={2.2} />
+                </button>
+                <button
+                  onClick={redo}
+                  disabled={!canRedo}
+                  className="icon-btn disabled:pointer-events-none disabled:opacity-40"
+                  title="Redo (Shift+Ctrl/Cmd+Z)"
+                  aria-label="Redo"
+                >
+                  <Redo2 className="h-4 w-4" strokeWidth={2.2} />
+                </button>
+              </div>
               <span className="badge border border-zinc-700 bg-zinc-800/60 text-zinc-400">
                 {tiers.length} tiers
               </span>

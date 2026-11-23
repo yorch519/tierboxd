@@ -86,7 +86,10 @@ export function DataImport() {
 
       importMovies(movies, effectiveMode);
       if (seedFromRatings) {
-        seedTiersFromRatings({ onlyUnassigned: effectiveMode === 'merge' });
+        seedTiersFromRatings({
+          onlyUnassigned: effectiveMode === 'merge',
+          recordHistory: false,
+        });
       }
 
       const afterImport = useStore.getState();

@@ -3,6 +3,8 @@ import type {
   Movie,
   Tier,
   Board,
+  BoardSnapshot,
+  BoardHistory,
   AppView,
   ImportMode,
   TierTemplateId,
@@ -13,10 +15,12 @@ import { createTiers } from '../lib/tierTemplates';
 
 const STATE_VERSION = 3;
 const PERSIST_DELAY = 400;
+const HISTORY_LIMIT = 50;
 
 interface AppState {
   boards: Board[];
   activeBoardId: string | null;
+  history: Record<string, BoardHistory>;
   tmdbKey: string | null;
   view: AppView;
   keyModalOpen: boolean;
@@ -34,7 +38,10 @@ interface AppState {
   importBoard: (raw: unknown) => boolean;
 
   importMovies: (incoming: Movie[], mode: ImportMode) => void;
-  seedTiersFromRatings: (options?: { onlyUnassigned?: boolean }) => void;
+  seedTiersFromRatings: (options?: {
+    onlyUnassigned?: boolean;
+    recordHistory?: boolean;
+  }) => void;
   addMovieToActiveBoard: (movie: Movie) => boolean;
   removeMovieFromActiveBoard: (id: string) => void;
 
@@ -47,6 +54,8 @@ interface AppState {
   addTier: () => void;
   removeTier: (tierId: string) => void;
   setView: (view: AppView) => void;
+  undo: () => void;
+  redo: () => void;
   reset: () => void;
 }
 
@@ -68,6 +77,14 @@ interface PersistedSlices {
 
 function cloneDefaultTiers(): Tier[] {
   return DEFAULT_TIERS.map((tier) => ({ ...tier }));
+}
+
+function snapshotBoard(board: Board): BoardSnapshot {
+  return {
+    movies: board.movies,
+    tiers: board.tiers,
+    tierMovies: board.tierMovies,
+  };
 }
 
 function normalizeMovie(value: unknown): Movie | null {
@@ -208,21 +225,39 @@ function loadState(): PersistedSlices {
 const initial = loadState();
 
 export const useStore = create<AppState>((set, get) => {
-  const patchBoard = (updater: (board: Board) => Board): Board | null => {
-    const { boards, activeBoardId } = get();
+  const patchBoard = (
+    updater: (board: Board) => Board,
+    options?: { recordHistory?: boolean }
+  ): Board | null => {
+    const { boards, activeBoardId, history } = get();
     const index = boards.findIndex((board) => board.id === activeBoardId);
     if (index < 0) return null;
 
-    const updated = { ...updater(boards[index]), updatedAt: Date.now() };
+    const current = boards[index];
+    let nextHistory = history;
+
+    if (options?.recordHistory !== false) {
+      const entry = history[current.id] ?? { past: [], future: [] };
+      nextHistory = {
+        ...history,
+        [current.id]: {
+          past: [...entry.past, snapshotBoard(current)].slice(-HISTORY_LIMIT),
+          future: [],
+        },
+      };
+    }
+
+    const updated = { ...updater(current), updatedAt: Date.now() };
     const next = [...boards];
     next[index] = updated;
-    set({ boards: next });
+    set({ boards: next, history: nextHistory });
     return updated;
   };
 
   return {
     boards: initial.boards,
     activeBoardId: initial.activeBoardId,
+    history: {},
     tmdbKey: localStorage.getItem(LS_KEYS.TMDB_KEY) ?? null,
     view: initial.view,
     keyModalOpen: false,
@@ -294,11 +329,14 @@ export const useStore = create<AppState>((set, get) => {
     deleteBoard: (id) => {
       set((state) => {
         const boards = state.boards.filter((board) => board.id !== id);
+        const history = { ...state.history };
+        delete history[id];
         const activeBoardId =
           state.activeBoardId === id ? boards[0]?.id ?? null : state.activeBoardId;
         return {
           boards,
           activeBoardId,
+          history,
           view: boards.length === 0 ? 'home' : state.view,
         };
       });
@@ -384,7 +422,7 @@ export const useStore = create<AppState>((set, get) => {
         }
 
         return { ...board, tierMovies: next };
-      });
+      }, { recordHistory: options?.recordHistory });
     },
 
     addMovieToActiveBoard: (movie) => {
@@ -425,7 +463,7 @@ export const useStore = create<AppState>((set, get) => {
         movies: board.movies.map((movie) =>
           movie.id === id ? { ...movie, posterUrl } : movie
         ),
-      }));
+      }), { recordHistory: false });
     },
 
     setPosterForBoard: (boardId, movieId, posterUrl) => {
@@ -450,7 +488,7 @@ export const useStore = create<AppState>((set, get) => {
         movies: board.movies.map((movie) =>
           movie.id === id ? { ...movie, tmdbId } : movie
         ),
-      }));
+      }), { recordHistory: false });
     },
 
     moveMovie: (movieId, toTierId) => {
@@ -531,9 +569,75 @@ export const useStore = create<AppState>((set, get) => {
 
     setView: (view) => set({ view }),
 
+    undo: () => {
+      const { boards, activeBoardId, history } = get();
+      if (!activeBoardId) return;
+
+      const index = boards.findIndex((board) => board.id === activeBoardId);
+      if (index < 0) return;
+
+      const entry = history[activeBoardId];
+      if (!entry || entry.past.length === 0) return;
+
+      const current = boards[index];
+      const previous = entry.past[entry.past.length - 1];
+      const nextBoards = [...boards];
+      nextBoards[index] = {
+        ...current,
+        movies: previous.movies,
+        tiers: previous.tiers,
+        tierMovies: previous.tierMovies,
+        updatedAt: Date.now(),
+      };
+
+      set({
+        boards: nextBoards,
+        history: {
+          ...history,
+          [activeBoardId]: {
+            past: entry.past.slice(0, -1),
+            future: [snapshotBoard(current), ...entry.future].slice(0, HISTORY_LIMIT),
+          },
+        },
+      });
+    },
+
+    redo: () => {
+      const { boards, activeBoardId, history } = get();
+      if (!activeBoardId) return;
+
+      const index = boards.findIndex((board) => board.id === activeBoardId);
+      if (index < 0) return;
+
+      const entry = history[activeBoardId];
+      if (!entry || entry.future.length === 0) return;
+
+      const current = boards[index];
+      const next = entry.future[0];
+      const nextBoards = [...boards];
+      nextBoards[index] = {
+        ...current,
+        movies: next.movies,
+        tiers: next.tiers,
+        tierMovies: next.tierMovies,
+        updatedAt: Date.now(),
+      };
+
+      set({
+        boards: nextBoards,
+        history: {
+          ...history,
+          [activeBoardId]: {
+            past: [...entry.past, snapshotBoard(current)].slice(-HISTORY_LIMIT),
+            future: entry.future.slice(1),
+          },
+        },
+      });
+    },
+
     reset: () => {
       localStorage.removeItem(LS_KEYS.STATE);
-      set({ boards: [], activeBoardId: null, view: 'home' });
+      set({ boards: [], activeBoardId: null, view: 'home', history: {} });
     },
   };
 });

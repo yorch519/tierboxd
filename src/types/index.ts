@@ -34,3 +34,14 @@ export interface Board {
   createdAt: number;
   updatedAt: number;
 }
+
+export interface BoardSnapshot {
+  movies: Movie[];
+  tiers: Tier[];
+  tierMovies: TierMovies;
+}
+
+export interface BoardHistory {
+  past: BoardSnapshot[];
+  future: BoardSnapshot[];
+}
