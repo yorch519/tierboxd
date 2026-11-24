@@ -3,6 +3,7 @@ import { Star } from 'lucide-react';
 export function Footer() {
   const year = new Date().getFullYear();
   const repoUrl = 'https://github.com/yorch519/tierboxd';
+  const profileUrl = 'https://github.com/yorch519';
 
   return (
     <footer className="border-t border-zinc-800/80 px-5 py-8">
@@ -23,7 +24,7 @@ export function Footer() {
           <p className="text-xs font-medium text-zinc-600">
             © {year} Tierboxd · Built by{' '}
             <a
-              href={repoUrl}
+              href={profileUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-zinc-400 hover:text-accent-300 hover:underline"
