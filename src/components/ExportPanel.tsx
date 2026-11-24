@@ -1,9 +1,19 @@
-import { useState } from 'react';
-import { Download, AlertCircle, CheckCircle2, Image, BarChart3, Loader2, FileJson } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import {
+  Download,
+  AlertCircle,
+  BarChart3,
+  CheckCircle2,
+  Image,
+  Loader2,
+  FileJson,
+  Upload,
+} from 'lucide-react';
 import { useActiveBoard } from '../store/useStore';
 import { generateLetterboxdCSV, downloadCSV } from '../lib/csvExporter';
 import { downloadBoardJson } from '../lib/boardJson';
 import { ImportBoardButton } from './ImportBoardButton';
+import { Select } from './ui/Select';
 import { TMDB_IMAGE_ORIGIN, TMDB_IMAGE_PROXY } from '../lib/constants';
 
 async function urlToDataUrl(url: string): Promise<string | null> {
@@ -23,6 +33,30 @@ async function urlToDataUrl(url: string): Promise<string | null> {
 }
 
 const posterDataCache = new Map<string, string>();
+
+type ImageLayout = 'auto' | 'single' | 'two';
+
+const EXPORT_COLUMN_GAP = 24;
+
+function getBalancedSplit(heights: number[]): number {
+  if (heights.length < 2) return 0;
+
+  const total = heights.reduce((sum, height) => sum + height, 0);
+  let leftHeight = 0;
+  let bestIndex = 1;
+  let bestDifference = Infinity;
+
+  for (let index = 1; index < heights.length; index += 1) {
+    leftHeight += heights[index - 1];
+    const difference = Math.abs(leftHeight - (total - leftHeight));
+    if (difference < bestDifference) {
+      bestDifference = difference;
+      bestIndex = index;
+    }
+  }
+
+  return bestIndex;
+}
 
 function toProxyUrl(url: string): string {
   const relativePath = url.replace(TMDB_IMAGE_ORIGIN, '').replace(/^\/+/, '');
@@ -57,6 +91,62 @@ async function fetchPosterData(
   return result;
 }
 
+const PRIMARY_ACTION_CLASS =
+  'group flex items-center gap-3 rounded-xl border border-accent-500/30 bg-accent-500/[0.06] p-3.5 text-left transition-colors hover:border-accent-500/50 hover:bg-accent-500/[0.09] disabled:pointer-events-none disabled:opacity-50';
+const PRIMARY_ICON_CLASS =
+  'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-500/15 text-accent-300 transition-colors group-hover:bg-accent-500/20 group-hover:text-accent-200';
+const SECONDARY_ACTION_CLASS =
+  'group flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-2.5 text-left transition-colors hover:border-zinc-700 hover:bg-zinc-900/60 disabled:pointer-events-none disabled:opacity-50';
+const SECONDARY_ICON_CLASS =
+  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-zinc-500 transition-colors group-hover:text-zinc-300';
+
+interface ExportActionProps {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: 'primary' | 'secondary';
+}
+
+function ExportAction({
+  icon,
+  title,
+  description,
+  onClick,
+  disabled,
+  variant = 'secondary',
+}: ExportActionProps) {
+  const primary = variant === 'primary';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={primary ? PRIMARY_ACTION_CLASS : SECONDARY_ACTION_CLASS}
+    >
+      <span className={primary ? PRIMARY_ICON_CLASS : SECONDARY_ICON_CLASS}>{icon}</span>
+      <span className="min-w-0">
+        <span
+          className={`block font-semibold ${
+            primary ? 'text-sm text-zinc-100' : 'text-xs text-zinc-300'
+          }`}
+        >
+          {title}
+        </span>
+        <span
+          className={`mt-0.5 block leading-snug ${
+            primary ? 'text-xs text-zinc-500' : 'text-[11px] text-zinc-600'
+          }`}
+        >
+          {description}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 interface Props {
   onToggleStats: () => void;
   statsVisible: boolean;
@@ -67,23 +157,13 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
   const [copied, setCopied] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [imageLayout, setImageLayout] = useState<ImageLayout>('auto');
 
   const movies = board?.movies ?? [];
   const tiers = board?.tiers ?? [];
   const tierMovieIds = board?.tierMovies ?? {};
 
   if (movies.length === 0) return null;
-
-  const movieById = new Map(movies.map((m) => [m.id, m]));
-  const assignedCount = Object.values(tierMovieIds).reduce((sum, ids) => sum + ids.length, 0);
-  const changedCount = Object.entries(tierMovieIds).reduce((sum, [tierId, ids]) => {
-    const tier = tiers.find((t) => t.id === tierId);
-    if (!tier) return sum;
-    return sum + ids.filter((id) => {
-      const movie = movieById.get(id);
-      return movie != null && movie.originalRating !== null && movie.originalRating !== tier.starRating;
-    }).length;
-  }, 0);
 
   const assignedIds = new Set(Object.values(tierMovieIds).flat());
   const hasUnassignedRated = movies.some(
@@ -111,6 +191,21 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
     try {
       const { default: html2canvas } = await import('html2canvas');
 
+      const sourceRows = Array.from(
+        el.querySelectorAll<HTMLElement>('[data-tier-rows] > div')
+      );
+      const rowHeights = sourceRows.map((row) => row.getBoundingClientRect().height);
+      const useTwoColumns =
+        sourceRows.length > 1 &&
+        (imageLayout === 'two' ||
+          (imageLayout === 'auto' && el.offsetHeight > el.offsetWidth * 1.6));
+      const splitIndex = useTwoColumns
+        ? Math.min(Math.max(getBalancedSplit(rowHeights), 1), sourceRows.length - 1)
+        : sourceRows.length;
+      const outputWidth = useTwoColumns
+        ? el.offsetWidth * 2 + EXPORT_COLUMN_GAP
+        : el.offsetWidth;
+
       const imageUrls = [...new Set(
         Array.from(el.querySelectorAll('img'))
           .map((img) => img.getAttribute('src'))
@@ -122,7 +217,7 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
       iframe.style.position = 'fixed';
       iframe.style.left = '-9999px';
       iframe.style.top = '0';
-      iframe.style.width = el.offsetWidth + 'px';
+      iframe.style.width = outputWidth + 'px';
       iframe.style.height = el.offsetHeight + 'px';
       iframe.style.border = 'none';
       document.body.appendChild(iframe);
@@ -180,6 +275,42 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
 
       const clone = el.cloneNode(true) as HTMLElement;
       walk(el, clone);
+
+      if (useTwoColumns) {
+        const rowsContainer = clone.querySelector<HTMLElement>('[data-tier-rows]');
+        const rows = rowsContainer
+          ? (Array.from(rowsContainer.children) as HTMLElement[])
+          : [];
+
+        if (rowsContainer && rows.length > 1) {
+          const doc = clone.ownerDocument;
+          const wrapper = doc.createElement('div');
+          wrapper.style.cssText = `display: flex; align-items: flex-start; gap: ${EXPORT_COLUMN_GAP}px;`;
+          const columns = [doc.createElement('div'), doc.createElement('div')];
+
+          for (const column of columns) {
+            column.style.cssText =
+              'display: flex; flex: 1 1 0; flex-direction: column; min-width: 0;';
+          }
+
+          const safeSplit = Math.min(Math.max(splitIndex, 1), rows.length - 1);
+          rows.forEach((row, index) => {
+            columns[index < safeSplit ? 0 : 1].appendChild(row);
+          });
+
+          for (const column of columns) {
+            const firstRow = column.firstElementChild as HTMLElement | null;
+            if (firstRow) firstRow.style.borderTop = 'none';
+          }
+
+          wrapper.append(...columns);
+          rowsContainer.replaceWith(wrapper);
+          clone.style.width = `${outputWidth}px`;
+          clone.style.maxWidth = 'none';
+          clone.style.height = 'auto';
+        }
+      }
+
       iframeDoc.body.appendChild(clone);
 
       const canvas = await html2canvas(clone, {
@@ -197,7 +328,7 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
       if (blob) {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.download = 'tierboxd.png';
+        link.download = useTwoColumns ? 'tierboxd-2col.png' : 'tierboxd.png';
         link.href = url;
         document.body.appendChild(link);
         link.click();
@@ -223,69 +354,111 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
               Export
             </h3>
           </div>
-          <span className="badge border border-zinc-700 bg-zinc-800/60 text-zinc-400">
-            {assignedCount}/{movies.length} assigned
-          </span>
+          <button
+            type="button"
+            onClick={onToggleStats}
+            className={`btn px-2.5 py-1.5 text-xs ${
+              statsVisible
+                ? 'border border-accent-500/40 bg-accent-500/10 text-accent-300'
+                : 'btn-ghost'
+            }`}
+            aria-pressed={statsVisible}
+          >
+            <BarChart3 className="h-3.5 w-3.5" strokeWidth={2.2} />
+            {statsVisible ? 'Hide stats' : 'Show stats'}
+          </button>
         </div>
 
-        <div className="space-y-4 p-4 sm:p-5">
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 px-3 py-3">
-              <div className="font-display text-2xl font-semibold text-zinc-100">
-                {movies.length}
-              </div>
-              <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
-                Total films
-              </div>
+        <div className="space-y-5 p-4 sm:p-5">
+          <div>
+            <span className="label-caps mb-2 block">Download & share</span>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <ExportAction
+                variant="primary"
+                icon={
+                  savingImage ? (
+                    <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.2} />
+                  ) : (
+                    <Image className="h-4 w-4" strokeWidth={2.2} />
+                  )
+                }
+                title={savingImage ? 'Saving…' : 'Save as image'}
+                description="PNG at 2× for sharing"
+                onClick={handleSaveImage}
+                disabled={savingImage}
+              />
+              <ExportAction
+                variant="primary"
+                icon={
+                  copied ? (
+                    <CheckCircle2 className="h-4 w-4" strokeWidth={2.4} />
+                  ) : (
+                    <Download className="h-4 w-4" strokeWidth={2.2} />
+                  )
+                }
+                title={copied ? 'Downloaded' : 'Letterboxd CSV'}
+                description={
+                  copied ? 'CSV ready to import' : 'Rated films and tier assignments'
+                }
+                onClick={handleExport}
+              />
             </div>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 px-3 py-3">
-              <div className="font-display text-2xl font-semibold text-zinc-100">
-                {assignedCount}
-              </div>
-              <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
-                In tiers
-              </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="label-caps">Image layout</span>
+              <Select
+                value={imageLayout}
+                onChange={(event) => setImageLayout(event.target.value as ImageLayout)}
+                aria-label="Image layout"
+                className="w-auto py-1 text-xs"
+                wrapperClassName="w-[150px]"
+              >
+                <option value="auto">Auto</option>
+                <option value="single">Single column</option>
+                <option value="two">Two columns</option>
+              </Select>
+              <span className="text-xs text-zinc-600">
+                {imageLayout === 'auto'
+                  ? 'Two columns for tall lists.'
+                  : imageLayout === 'two'
+                    ? 'Wider image, shorter height.'
+                    : 'Classic vertical layout.'}
+              </span>
             </div>
-            <div className="rounded-xl border border-accent-500/25 bg-accent-500/[0.06] px-3 py-3">
-              <div className="font-display text-2xl font-semibold text-accent-300">
-                {changedCount}
-              </div>
-              <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
-                Ratings changed
-              </div>
-            </div>
+            <p className="mt-2 text-xs text-zinc-600">
+              CSV compatible with{' '}
+              <a
+                href="https://letterboxd.com/import/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-zinc-400 hover:text-accent-300 hover:underline"
+              >
+                Letterboxd's importer
+              </a>
+              .
+            </p>
           </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={handleSaveImage}
-              disabled={savingImage}
-              className="btn btn-surface flex-1"
-            >
-              {savingImage ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.2} />
-                  Saving…
-                </>
-              ) : (
-                <>
-                  <Image className="h-4 w-4" strokeWidth={2.2} />
-                  Save as image
-                </>
-              )}
-            </button>
-
-            <button
-              onClick={onToggleStats}
-              className={`btn flex-1 ${
-                statsVisible
-                  ? 'border border-accent-500/40 bg-accent-500/10 text-accent-300'
-                  : 'btn-surface'
-              }`}
-            >
-              <BarChart3 className="h-4 w-4" strokeWidth={2.2} />
-              {statsVisible ? 'Hide stats' : 'Show stats'}
-            </button>
+          <div>
+            <span className="label-caps mb-2 block">Backup</span>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <ExportAction
+                icon={<FileJson className="h-3.5 w-3.5" strokeWidth={2.2} />}
+                title="Export JSON"
+                description="Backup or share this list"
+                onClick={handleExportJson}
+              />
+              <ImportBoardButton
+                className={SECONDARY_ACTION_CLASS}
+                icon={
+                  <span className={SECONDARY_ICON_CLASS}>
+                    <Upload className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  </span>
+                }
+                label="Import JSON"
+                description="Restore a list from a backup"
+                compact
+              />
+            </div>
           </div>
 
           {imageError && (
@@ -300,22 +473,6 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
             </div>
           )}
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
-            <p className="text-xs leading-relaxed text-zinc-500">
-              Downloads a CSV file compatible with{' '}
-              <a
-                href="https://letterboxd.com/settings/import-data/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent-400 hover:underline"
-              >
-                Letterboxd's importer
-              </a>
-              . Includes rated films and films placed in a tier. Unassigned rated films keep
-              their original rating.
-            </p>
-          </div>
-
           {hasUnassignedRated && (
             <div className="flex items-start gap-2 rounded-xl border border-accent-500/20 bg-accent-500/10 p-3">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-accent-400" strokeWidth={2.2} />
@@ -324,39 +481,6 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
               </p>
             </div>
           )}
-
-          <button onClick={handleExport} className="btn btn-primary w-full py-2.5">
-            {copied ? (
-              <>
-                <CheckCircle2 className="h-4 w-4" strokeWidth={2.4} />
-                Downloaded
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4" strokeWidth={2.2} />
-                Download CSV for Letterboxd
-              </>
-            )}
-          </button>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
-            <div>
-              <p className="text-xs font-semibold text-zinc-300">Backup & share</p>
-              <p className="text-[11px] text-zinc-600">
-                Download this list as JSON, or import one.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={handleExportJson}
-                className="btn btn-ghost px-2.5 py-1.5 text-xs"
-              >
-                <FileJson className="h-3.5 w-3.5" strokeWidth={2.2} />
-                Export JSON
-              </button>
-              <ImportBoardButton className="btn btn-ghost px-2.5 py-1.5 text-xs" />
-            </div>
-          </div>
         </div>
       </div>
     </div>

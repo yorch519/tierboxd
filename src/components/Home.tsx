@@ -5,10 +5,6 @@ import { CreateBoardModal } from './CreateBoardModal';
 import { ImportBoardButton } from './ImportBoardButton';
 import type { Board } from '../types';
 
-function assignedCount(board: Board): number {
-  return Object.values(board.tierMovies).reduce((sum, ids) => sum + ids.length, 0);
-}
-
 function PosterStrip({ board }: { board: Board }) {
   const posters = board.movies
     .map((movie) => movie.posterUrl)
@@ -144,8 +140,7 @@ export function Home() {
                       {board.name}
                     </h3>
                     <p className="mt-1 text-xs text-zinc-500">
-                      {board.movies.length} films · {assignedCount(board)} in tiers ·{' '}
-                      {board.tiers.length} tiers
+                      {board.movies.length} films · {board.tiers.length} tiers
                     </p>
                   </div>
                 </div>
