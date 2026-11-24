@@ -1,10 +1,9 @@
-import { Film, Key, LogOut, RotateCcw } from 'lucide-react';
+import { Film, Key, LogOut } from 'lucide-react';
 import { useStore, useActiveBoard } from '../store/useStore';
 
 export function Header() {
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
-  const reset = useStore((s) => s.reset);
   const tmdbKey = useStore((s) => s.tmdbKey);
   const clearTmdbKey = useStore((s) => s.clearTmdbKey);
   const openKeyModal = useStore((s) => s.openKeyModal);
@@ -43,12 +42,6 @@ export function Header() {
             </button>
           )}
 
-          {activeBoard && (
-            <span className="hidden text-xs font-medium text-zinc-600 sm:inline">
-              {activeBoard.movies.length} films
-            </span>
-          )}
-
           <div className="mx-1 hidden h-5 w-px bg-zinc-800 sm:block" />
 
           {tmdbKey ? (
@@ -73,28 +66,16 @@ export function Header() {
               </button>
             </div>
           ) : (
-              <button
-                onClick={openKeyModal}
-                className="btn btn-ghost px-2.5 py-1.5 text-xs"
-                title="Use your own TMDB key (optional)"
-                aria-label="Use your own TMDB key"
-              >
+            <button
+              onClick={openKeyModal}
+              className="btn btn-ghost px-2.5 py-1.5 text-xs"
+              title="Use your own TMDB key (optional)"
+              aria-label="Use your own TMDB key"
+            >
               <Key className="h-4 w-4" strokeWidth={2.2} />
               <span className="hidden sm:inline">Own key</span>
             </button>
           )}
-
-          <button
-            onClick={() => {
-              if (confirm('Delete all tier lists? This cannot be undone.')) reset();
-            }}
-            className="btn btn-ghost px-2.5 py-1.5 text-xs hover:text-red-400"
-            title="Delete all lists"
-            aria-label="Delete all lists"
-          >
-            <RotateCcw className="h-4 w-4" strokeWidth={2.2} />
-            <span className="hidden sm:inline">Reset</span>
-          </button>
         </div>
       </div>
     </header>

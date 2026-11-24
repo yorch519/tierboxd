@@ -51,6 +51,7 @@ interface AppState {
   setMovieTmdbId: (id: string, tmdbId: string) => void;
   moveMovie: (movieId: string, toTierId: string | null) => void;
   moveMovies: (movieIds: string[], toTierId: string | null) => void;
+  moveAllToBank: () => void;
   insertMovie: (movieId: string, tierId: string, beforeMovieId?: string) => void;
   removeMovies: (movieIds: string[]) => void;
   toggleMovieSelection: (movieId: string) => void;
@@ -62,7 +63,6 @@ interface AppState {
   setView: (view: AppView) => void;
   undo: () => void;
   redo: () => void;
-  reset: () => void;
 }
 
 interface PersistedState {
@@ -159,7 +159,7 @@ function normalizeBoard(value: unknown): Board | null {
     name: board.name,
     origin: board.origin === 'letterboxd' ? 'letterboxd' : 'manual',
     movies,
-    tiers: tiers.length > 0 ? tiers : cloneDefaultTiers(),
+    tiers: Array.isArray(board.tiers) ? tiers : cloneDefaultTiers(),
     tierMovies: normalizeTierMovies(board.tierMovies),
     createdAt: typeof board.createdAt === 'number' ? board.createdAt : now,
     updatedAt: typeof board.updatedAt === 'number' ? board.updatedAt : now,
@@ -476,6 +476,9 @@ export const useStore = create<AppState>((set, get) => {
           tierMovies,
         };
       });
+      set((state) => ({
+        selectedMovieIds: state.selectedMovieIds.filter((selectedId) => selectedId !== id),
+      }));
     },
 
     setPosterForMovie: (id, posterUrl) => {
@@ -544,6 +547,24 @@ export const useStore = create<AppState>((set, get) => {
         }
         return { ...board, tierMovies: next };
       });
+      set({ selectedMovieIds: [] });
+    },
+
+    moveAllToBank: () => {
+      const { boards, activeBoardId } = get();
+      const board = boards.find((item) => item.id === activeBoardId);
+      if (!board) return;
+
+      const hasAssigned = Object.values(board.tierMovies).some((ids) => ids.length > 0);
+      if (!hasAssigned) {
+        set({ selectedMovieIds: [] });
+        return;
+      }
+
+      patchBoard((current) => ({
+        ...current,
+        tierMovies: Object.fromEntries(current.tiers.map((tier) => [tier.id, []])),
+      }));
       set({ selectedMovieIds: [] });
     },
 
@@ -729,11 +750,6 @@ export const useStore = create<AppState>((set, get) => {
           },
         },
       });
-    },
-
-    reset: () => {
-      localStorage.removeItem(LS_KEYS.STATE);
-      set({ boards: [], activeBoardId: null, view: 'home', history: {}, selectedMovieIds: [] });
     },
   };
 });

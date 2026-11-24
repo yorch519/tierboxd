@@ -2,18 +2,22 @@ import { useMemo, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { Clapperboard, Search, X } from 'lucide-react';
 import type { Movie } from '../types';
+import { useStore } from '../store/useStore';
+import { getYearOptions } from '../lib/years';
 import { MovieCard } from './MovieCard';
 import { Select } from './ui/Select';
 
 interface Props {
   movies: Movie[];
+  allowRemove?: boolean;
 }
 
 function normalize(value: string): string {
   return value.trim().toLowerCase();
 }
 
-export function MovieBank({ movies }: Props) {
+export function MovieBank({ movies, allowRemove = false }: Props) {
+  const removeMovie = useStore((s) => s.removeMovieFromActiveBoard);
   const { setNodeRef, isOver } = useDroppable({
     id: 'unassigned',
     data: { type: 'movie-bank' },
@@ -23,7 +27,7 @@ export function MovieBank({ movies }: Props) {
   const [year, setYear] = useState('');
 
   const years = useMemo(() => {
-    const values = new Set<number>();
+    const values = new Set(getYearOptions(new Date().getFullYear() + 1));
     for (const movie of movies) {
       if (movie.year > 0) values.add(movie.year);
     }
@@ -48,6 +52,12 @@ export function MovieBank({ movies }: Props) {
   const clearFilters = () => {
     setQuery('');
     setYear('');
+  };
+
+  const handleRemove = (movie: Movie) => {
+    if (window.confirm(`Remove "${movie.title}" from this list?`)) {
+      removeMovie(movie.id);
+    }
   };
 
   return (
@@ -153,7 +163,11 @@ export function MovieBank({ movies }: Props) {
             style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))' }}
           >
             {filtered.map((movie) => (
-              <MovieCard key={movie.id} movie={movie} />
+              <MovieCard
+                key={movie.id}
+                movie={movie}
+                onRemove={allowRemove ? () => handleRemove(movie) : undefined}
+              />
             ))}
           </div>
         )}

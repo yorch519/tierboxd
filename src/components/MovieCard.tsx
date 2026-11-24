@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { ArrowRightLeft, Check, Pencil } from 'lucide-react';
+import { ArrowRightLeft, Check, Pencil, Trash2 } from 'lucide-react';
 import type { Movie } from '../types';
 import { useStore } from '../store/useStore';
 import { PosterPickerModal } from './PosterPickerModal';
@@ -10,9 +10,10 @@ import { MoveToMenu } from './MoveToMenu';
 
 interface Props {
   movie: Movie;
+  onRemove?: () => void;
 }
 
-export function MovieCard({ movie }: Props) {
+export function MovieCard({ movie, onRemove }: Props) {
   const [showPicker, setShowPicker] = useState(false);
   const [showMove, setShowMove] = useState(false);
   const selected = useStore((s) => s.selectedMovieIds.includes(movie.id));
@@ -153,6 +154,26 @@ export function MovieCard({ movie }: Props) {
         >
           <Pencil className="h-3 w-3" strokeWidth={2.4} />
         </button>
+
+        {onRemove && (
+          <button
+            type="button"
+            data-export-hide
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-white/10 bg-black/60
+                       text-zinc-300 opacity-100 backdrop-blur-sm transition-all hover:bg-black/80
+                       hover:text-red-400 focus-visible:opacity-100
+                       [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+            title="Remove from list"
+            aria-label={`Remove ${movie.title} from this list`}
+          >
+            <Trash2 className="h-3 w-3" strokeWidth={2.4} />
+          </button>
+        )}
       </div>
 
       {selected && (

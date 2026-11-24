@@ -43,9 +43,15 @@ export const TIER_TEMPLATES: Record<TierTemplateId, TierTemplate> = {
     description: 'Simple numeric ranking',
     tiers: NUMERIC_TIERS,
   },
+  scratch: {
+    id: 'scratch',
+    label: 'From scratch',
+    description: 'Start with no tiers and build your own',
+    tiers: [],
+  },
 };
 
-export const TIER_TEMPLATE_ORDER: TierTemplateId[] = ['stars', 'sabcd', 'numeric'];
+export const TIER_TEMPLATE_ORDER: TierTemplateId[] = ['stars', 'sabcd', 'numeric', 'scratch'];
 
 export function createTiers(templateId: TierTemplateId): Tier[] {
   const template = TIER_TEMPLATES[templateId] ?? TIER_TEMPLATES.stars;

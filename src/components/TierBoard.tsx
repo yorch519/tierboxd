@@ -10,7 +10,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { LayoutGrid, Plus, Redo2, Undo2 } from 'lucide-react';
+import { LayoutGrid, Plus, Redo2, RotateCcw, Undo2 } from 'lucide-react';
 import { useStore, useActiveBoard } from '../store/useStore';
 import { useUndoShortcuts } from '../hooks/useUndoShortcuts';
 import { useSelectionShortcuts } from '../hooks/useSelectionShortcuts';
@@ -18,7 +18,6 @@ import { TierRow } from './TierRow';
 import { MovieBank } from './MovieBank';
 import { MovieSearchPanel } from './MovieSearchPanel';
 import { MovieCard } from './MovieCard';
-import { StatsPanel } from './StatsPanel';
 import { SelectionBar } from './SelectionBar';
 import type { Movie, Tier, TierMovies } from '../types';
 
@@ -26,14 +25,10 @@ const EMPTY_MOVIES: Movie[] = [];
 const EMPTY_TIERS: Tier[] = [];
 const EMPTY_TIER_MOVIES: TierMovies = {};
 
-interface Props {
-  statsVisible: boolean;
-  onCloseStats: () => void;
-}
-
-export function TierBoard({ statsVisible, onCloseStats }: Props) {
+export function TierBoard() {
   const board = useActiveBoard();
   const moveMovie = useStore((s) => s.moveMovie);
+  const moveAllToBank = useStore((s) => s.moveAllToBank);
   const insertMovie = useStore((s) => s.insertMovie);
   const addTier = useStore((s) => s.addTier);
   const reorderTiers = useStore((s) => s.reorderTiers);
@@ -56,6 +51,10 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
   const movies = board?.movies ?? EMPTY_MOVIES;
   const tiers = board?.tiers ?? EMPTY_TIERS;
   const tierMovieIds = board?.tierMovies ?? EMPTY_TIER_MOVIES;
+  const assignedCount = Object.values(tierMovieIds).reduce(
+    (sum, ids) => sum + ids.length,
+    0
+  );
 
   const [activeMovie, setActiveMovie] = useState<Movie | null>(null);
   const [activeTier, setActiveTier] = useState<Pick<Tier, 'name' | 'color'> | null>(null);
@@ -187,33 +186,39 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
                 Tier List
               </h2>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={undo}
-                  disabled={!canUndo}
-                  className="icon-btn disabled:pointer-events-none disabled:opacity-40"
-                  title="Undo (Ctrl/Cmd+Z)"
-                  aria-label="Undo"
-                >
-                  <Undo2 className="h-4 w-4" strokeWidth={2.2} />
-                </button>
-                <button
-                  onClick={redo}
-                  disabled={!canRedo}
-                  className="icon-btn disabled:pointer-events-none disabled:opacity-40"
-                  title="Redo (Shift+Ctrl/Cmd+Z)"
-                  aria-label="Redo"
-                >
-                  <Redo2 className="h-4 w-4" strokeWidth={2.2} />
-                </button>
-              </div>
-              <span className="badge border border-zinc-700 bg-zinc-800/60 text-zinc-400">
-                {tiers.length} tiers
-              </span>
-              <span className="hidden text-xs font-medium text-zinc-600 sm:inline">
-                {movies.length} films
-              </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={undo}
+                disabled={!canUndo}
+                className="icon-btn disabled:pointer-events-none disabled:opacity-40"
+                title="Undo (Ctrl/Cmd+Z)"
+                aria-label="Undo"
+              >
+                <Undo2 className="h-4 w-4" strokeWidth={2.2} />
+              </button>
+              <button
+                onClick={redo}
+                disabled={!canRedo}
+                className="icon-btn disabled:pointer-events-none disabled:opacity-40"
+                title="Redo (Shift+Ctrl/Cmd+Z)"
+                aria-label="Redo"
+              >
+                <Redo2 className="h-4 w-4" strokeWidth={2.2} />
+              </button>
+              <button
+                onClick={() => {
+                  const filmLabel = assignedCount === 1 ? 'film' : 'films';
+                  if (window.confirm(`Move all ${assignedCount} ${filmLabel} back to the Movie Bank?`)) {
+                    moveAllToBank();
+                  }
+                }}
+                disabled={assignedCount === 0}
+                className="icon-btn disabled:pointer-events-none disabled:opacity-40"
+                title="Move all films to Movie Bank"
+                aria-label="Move all films to Movie Bank"
+              >
+                <RotateCcw className="h-4 w-4" strokeWidth={2.2} />
+              </button>
             </div>
           </div>
 
@@ -223,7 +228,19 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
             </h1>
           </div>
 
-          <div className="divide-y divide-zinc-800/60">
+          <div data-tier-rows className="divide-y divide-zinc-800/60">
+            {tiers.length === 0 && (
+              <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
+                <p className="text-sm font-medium text-zinc-400">No tiers yet</p>
+                <p className="max-w-xs text-xs text-zinc-600">
+                  Add your first tier to start ranking films.
+                </p>
+                <button onClick={addTier} className="btn btn-surface mt-1 text-xs">
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  Add tier
+                </button>
+              </div>
+            )}
             {tiers.map((tier) => (
               <TierRow
                 key={tier.id}
@@ -233,24 +250,17 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
             ))}
           </div>
 
-          <div data-export-hide className="border-t border-zinc-800/70 bg-zinc-900/50 px-3 py-2">
-            <button onClick={addTier} className="btn btn-ghost px-2.5 py-1.5 text-xs">
-              <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-              Add tier
-            </button>
-          </div>
+          {tiers.length > 0 && (
+            <div data-export-hide className="border-t border-zinc-800/70 bg-zinc-900/50 px-3 py-2">
+              <button onClick={addTier} className="btn btn-ghost px-2.5 py-1.5 text-xs">
+                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+                Add tier
+              </button>
+            </div>
+          )}
         </div>
 
-        {statsVisible && (
-          <StatsPanel
-            tiers={tiers}
-            tierMovieIds={tierMovieIds}
-            movies={movies}
-            onClose={onCloseStats}
-          />
-        )}
-
-        <MovieBank movies={unassigned} />
+        <MovieBank movies={unassigned} allowRemove={board?.origin === 'manual'} />
       </div>
 
       <SelectionBar />

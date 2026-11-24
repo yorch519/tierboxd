@@ -18,7 +18,7 @@ export type AppView = 'home' | 'import' | 'board';
 
 export type ImportMode = 'merge' | 'replace';
 
-export type TierTemplateId = 'stars' | 'sabcd' | 'numeric';
+export type TierTemplateId = 'stars' | 'sabcd' | 'numeric' | 'scratch';
 
 export interface TierMovies {
   [tierId: string]: string[];

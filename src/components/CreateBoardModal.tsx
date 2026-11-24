@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutTemplate, X } from 'lucide-react';
+import { LayoutTemplate, Plus, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { TIER_TEMPLATES, TIER_TEMPLATE_ORDER } from '../lib/tierTemplates';
@@ -86,13 +86,19 @@ export function CreateBoardModal({ onClose }: Props) {
                       <div className="text-[11px] text-zinc-500">{templateInfo.description}</div>
                     </div>
                     <div className="flex gap-0.5">
-                      {templateInfo.tiers.slice(0, 6).map((tier) => (
-                        <span
-                          key={tier.id}
-                          className="h-6 w-3 rounded-sm"
-                          style={{ backgroundColor: tier.color }}
-                        />
-                      ))}
+                      {templateInfo.tiers.length > 0 ? (
+                        templateInfo.tiers.slice(0, 6).map((tier) => (
+                          <span
+                            key={tier.id}
+                            className="h-6 w-3 rounded-sm"
+                            style={{ backgroundColor: tier.color }}
+                          />
+                        ))
+                      ) : (
+                        <span className="flex h-6 w-6 items-center justify-center rounded-sm border border-dashed border-zinc-600 text-zinc-500">
+                          <Plus className="h-2.5 w-2.5" strokeWidth={2.4} />
+                        </span>
+                      )}
                     </div>
                   </button>
                 );
