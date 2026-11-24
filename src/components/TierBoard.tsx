@@ -36,6 +36,7 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
   const moveMovie = useStore((s) => s.moveMovie);
   const insertMovie = useStore((s) => s.insertMovie);
   const addTier = useStore((s) => s.addTier);
+  const reorderTiers = useStore((s) => s.reorderTiers);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
   const clearMovieSelection = useStore((s) => s.clearMovieSelection);
@@ -57,6 +58,7 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
   const tierMovieIds = board?.tierMovies ?? EMPTY_TIER_MOVIES;
 
   const [activeMovie, setActiveMovie] = useState<Movie | null>(null);
+  const [activeTier, setActiveTier] = useState<Pick<Tier, 'name' | 'color'> | null>(null);
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -86,13 +88,45 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
   }, [movies, tierMovieIds]);
 
   const handleDragStart = (event: DragStartEvent) => {
-    const movie = event.active.data.current?.movie as Movie | undefined;
+    const data = event.active.data.current;
+    if (data?.type === 'tier-item') {
+      const tier = data.tier as Tier;
+      setActiveTier({ name: tier.name, color: tier.color });
+      return;
+    }
+
+    const movie = data?.movie as Movie | undefined;
     if (movie) setActiveMovie(movie);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveMovie(null);
+    setActiveTier(null);
+
     const { active, over } = event;
+    const activeData = active.data.current;
+
+    if (activeData?.type === 'tier-item') {
+      const fromTierId = activeData.tierId as string;
+      let toTierId: string | null = null;
+
+      if (over) {
+        const overData = over.data.current;
+        if (overData?.type === 'tier') {
+          toTierId = overData.tierId as string;
+        } else if (overData?.type === 'movie-target') {
+          const targetMovieId = overData.movieId as string;
+          const entry = Object.entries(tierMovieIds).find(([, ids]) =>
+            ids.includes(targetMovieId)
+          );
+          if (entry) toTierId = entry[0];
+        }
+      }
+
+      if (toTierId) reorderTiers(fromTierId, toTierId);
+      return;
+    }
+
     if (!over) {
       moveMovie(String(active.id), null);
       return;
@@ -127,12 +161,18 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
     moveMovie(String(active.id), null);
   };
 
+  const handleDragCancel = () => {
+    setActiveMovie(null);
+    setActiveTier(null);
+  };
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={pointerWithin}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <div className="mx-auto max-w-7xl space-y-4 px-3 py-6 sm:space-y-5 sm:px-5 sm:py-8">
         <MovieSearchPanel />
@@ -205,7 +245,7 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
           <StatsPanel
             tiers={tiers}
             tierMovieIds={tierMovieIds}
-            totalMovies={movies.length}
+            movies={movies}
             onClose={onCloseStats}
           />
         )}
@@ -219,6 +259,18 @@ export function TierBoard({ statsVisible, onCloseStats }: Props) {
         {activeMovie ? (
           <div className="w-[104px] opacity-90 scale-110 rotate-2 shadow-2xl">
             <MovieCard movie={activeMovie} />
+          </div>
+        ) : activeTier ? (
+          <div
+            className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900/95 px-4 py-2 shadow-2xl"
+            style={{ borderLeft: `4px solid ${activeTier.color}` }}
+          >
+            <span
+              className="font-display text-xl font-semibold"
+              style={{ color: activeTier.color }}
+            >
+              {activeTier.name}
+            </span>
           </div>
         ) : null}
       </DragOverlay>

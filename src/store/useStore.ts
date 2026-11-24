@@ -58,6 +58,7 @@ interface AppState {
   updateTier: (tierId: string, updates: Partial<Tier>) => void;
   addTier: () => void;
   removeTier: (tierId: string) => void;
+  reorderTiers: (fromTierId: string, toTierId: string) => void;
   setView: (view: AppView) => void;
   undo: () => void;
   redo: () => void;
@@ -634,6 +635,31 @@ export const useStore = create<AppState>((set, get) => {
           tiers: board.tiers.filter((tier) => tier.id !== tierId),
           tierMovies,
         };
+      });
+    },
+
+    reorderTiers: (fromTierId, toTierId) => {
+      if (fromTierId === toTierId) return;
+
+      const { boards, activeBoardId } = get();
+      const board = boards.find((item) => item.id === activeBoardId);
+      if (
+        !board ||
+        !board.tiers.some((tier) => tier.id === fromTierId) ||
+        !board.tiers.some((tier) => tier.id === toTierId)
+      ) {
+        return;
+      }
+
+      patchBoard((current) => {
+        const from = current.tiers.findIndex((tier) => tier.id === fromTierId);
+        const to = current.tiers.findIndex((tier) => tier.id === toTierId);
+        if (from < 0 || to < 0 || from === to) return current;
+
+        const tiers = [...current.tiers];
+        const [moved] = tiers.splice(from, 1);
+        tiers.splice(to, 0, moved);
+        return { ...current, tiers };
       });
     },
 

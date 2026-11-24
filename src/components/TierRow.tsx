@@ -1,5 +1,5 @@
-import { useDroppable } from '@dnd-kit/core';
-import { Settings2, Trash2, X } from 'lucide-react';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { GripVertical, Settings2, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import type { Tier, Movie } from '../types';
 import { MovieCard } from './MovieCard';
@@ -22,6 +22,16 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
   const { setNodeRef, isOver } = useDroppable({
     id: tier.id,
     data: { type: 'tier', tierId: tier.id },
+  });
+
+  const {
+    attributes: dragAttributes,
+    listeners: dragListeners,
+    setNodeRef: setDragHandleRef,
+    isDragging,
+  } = useDraggable({
+    id: `tier-${tier.id}`,
+    data: { type: 'tier-item', tierId: tier.id, tier },
   });
 
   const handleSave = () => {
@@ -101,6 +111,18 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
             </span>
             <div data-export-hide className="mt-1 flex items-center gap-0.5">
               <button
+                ref={setDragHandleRef}
+                {...dragListeners}
+                {...dragAttributes}
+                className={`icon-btn h-6 w-6 cursor-grab touch-none active:cursor-grabbing ${
+                  isDragging ? 'opacity-40' : ''
+                }`}
+                title="Drag to reorder tier"
+                aria-label={`Reorder tier ${tier.name}`}
+              >
+                <GripVertical className="h-3.5 w-3.5" strokeWidth={2.2} />
+              </button>
+              <button
                 onClick={() => {
                   setName(tier.name);
                   setColor(tier.color);
@@ -114,7 +136,15 @@ export function TierRow({ tier, movies, isOverlay }: Props) {
                 <Settings2 className="h-3.5 w-3.5" strokeWidth={2.2} />
               </button>
               <button
-                onClick={() => removeTier(tier.id)}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Remove tier "${tier.name}"? Films in it will move to the Movie Bank.`
+                    )
+                  ) {
+                    removeTier(tier.id);
+                  }
+                }}
                 className="icon-btn h-6 w-6 hover:text-red-400"
                 title="Remove tier"
                 aria-label={`Remove tier ${tier.name}`}
