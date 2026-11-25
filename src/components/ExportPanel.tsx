@@ -409,8 +409,8 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
                 value={imageLayout}
                 onChange={(event) => setImageLayout(event.target.value as ImageLayout)}
                 aria-label="Image layout"
-                className="w-auto py-1 text-xs"
-                wrapperClassName="w-[150px]"
+                className="py-1 text-xs"
+                wrapperClassName="w-[160px] shrink-0"
               >
                 <option value="auto">Auto</option>
                 <option value="single">Single column</option>
