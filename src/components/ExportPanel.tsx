@@ -34,28 +34,88 @@ async function urlToDataUrl(url: string): Promise<string | null> {
 
 const posterDataCache = new Map<string, string>();
 
-type ImageLayout = 'auto' | 'single' | 'two';
+type ImageLayout = 'auto' | 'single' | 'two' | 'three';
 
 const EXPORT_COLUMN_GAP = 24;
+const MAX_EXPORT_COLUMNS = 3;
+const TARGET_EXPORT_ASPECT = 1.4;
 
-function getBalancedSplit(heights: number[]): number {
-  if (heights.length < 2) return 0;
+function getColumnGroups(heights: number[], columnCount: number): number[][] {
+  const rowCount = heights.length;
+  if (rowCount === 0) return [];
 
-  const total = heights.reduce((sum, height) => sum + height, 0);
-  let leftHeight = 0;
-  let bestIndex = 1;
-  let bestDifference = Infinity;
+  const count = Math.min(Math.max(columnCount, 1), rowCount);
+  if (count === 1) {
+    return [Array.from({ length: rowCount }, (_, index) => index)];
+  }
 
-  for (let index = 1; index < heights.length; index += 1) {
-    leftHeight += heights[index - 1];
-    const difference = Math.abs(leftHeight - (total - leftHeight));
-    if (difference < bestDifference) {
-      bestDifference = difference;
-      bestIndex = index;
+  let bestGroups: number[][] = [];
+  let bestMaxHeight = Infinity;
+  let bestSpread = Infinity;
+  const groups: number[][] = [];
+
+  const search = (start: number, remaining: number) => {
+    if (remaining === 1) {
+      const lastGroup = Array.from(
+        { length: rowCount - start },
+        (_, index) => start + index
+      );
+      const allGroups = [...groups, lastGroup];
+      const sums = allGroups.map((group) =>
+        group.reduce((sum, index) => sum + heights[index], 0)
+      );
+      const maxHeight = Math.max(...sums);
+      const spread = maxHeight - Math.min(...sums);
+
+      if (
+        maxHeight < bestMaxHeight - 0.001 ||
+        (Math.abs(maxHeight - bestMaxHeight) <= 0.001 && spread < bestSpread)
+      ) {
+        bestMaxHeight = maxHeight;
+        bestSpread = spread;
+        bestGroups = allGroups;
+      }
+      return;
+    }
+
+    const lastEnd = rowCount - (remaining - 1);
+    for (let end = start + 1; end <= lastEnd; end += 1) {
+      groups.push(
+        Array.from({ length: end - start }, (_, index) => start + index)
+      );
+      search(end, remaining - 1);
+      groups.pop();
+    }
+  };
+
+  search(0, count);
+  return bestGroups;
+}
+
+function chooseColumnCount(heights: number[], boardWidth: number, chromeHeight: number): number {
+  const rowCount = heights.length;
+  if (rowCount < 2) return 1;
+
+  let bestCount = 1;
+  let bestScore = Infinity;
+
+  for (let count = 1; count <= Math.min(MAX_EXPORT_COLUMNS, rowCount); count += 1) {
+    const groups = getColumnGroups(heights, count);
+    const maxColumnHeight = Math.max(
+      ...groups.map((group) => group.reduce((sum, index) => sum + heights[index], 0))
+    );
+    const width = count * boardWidth + (count - 1) * EXPORT_COLUMN_GAP;
+    const height = maxColumnHeight + chromeHeight;
+    const aspect = width / Math.max(height, 1);
+    const score = Math.abs(Math.log(aspect / TARGET_EXPORT_ASPECT));
+
+    if (score < bestScore - 0.001) {
+      bestScore = score;
+      bestCount = count;
     }
   }
 
-  return bestIndex;
+  return bestCount;
 }
 
 function toProxyUrl(url: string): string {
@@ -195,16 +255,25 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
         el.querySelectorAll<HTMLElement>('[data-tier-rows] > div')
       );
       const rowHeights = sourceRows.map((row) => row.getBoundingClientRect().height);
-      const useTwoColumns =
-        sourceRows.length > 1 &&
-        (imageLayout === 'two' ||
-          (imageLayout === 'auto' && el.offsetHeight > el.offsetWidth * 1.6));
-      const splitIndex = useTwoColumns
-        ? Math.min(Math.max(getBalancedSplit(rowHeights), 1), sourceRows.length - 1)
-        : sourceRows.length;
-      const outputWidth = useTwoColumns
-        ? el.offsetWidth * 2 + EXPORT_COLUMN_GAP
-        : el.offsetWidth;
+      const chromeHeight = Math.max(
+        0,
+        el.offsetHeight - rowHeights.reduce((sum, height) => sum + height, 0)
+      );
+      const requestedColumns =
+        imageLayout === 'single'
+          ? 1
+          : imageLayout === 'two'
+            ? 2
+            : imageLayout === 'three'
+              ? 3
+              : chooseColumnCount(rowHeights, el.offsetWidth, chromeHeight);
+      const columnCount = Math.min(
+        Math.max(requestedColumns, 1),
+        Math.min(MAX_EXPORT_COLUMNS, Math.max(sourceRows.length, 1))
+      );
+      const columnGroups = getColumnGroups(rowHeights, columnCount);
+      const outputWidth =
+        columnCount * el.offsetWidth + (columnCount - 1) * EXPORT_COLUMN_GAP;
 
       const imageUrls = [...new Set(
         Array.from(el.querySelectorAll('img'))
@@ -276,7 +345,7 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
       const clone = el.cloneNode(true) as HTMLElement;
       walk(el, clone);
 
-      if (useTwoColumns) {
+      if (columnCount > 1) {
         const rowsContainer = clone.querySelector<HTMLElement>('[data-tier-rows]');
         const rows = rowsContainer
           ? (Array.from(rowsContainer.children) as HTMLElement[])
@@ -286,16 +355,18 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
           const doc = clone.ownerDocument;
           const wrapper = doc.createElement('div');
           wrapper.style.cssText = `display: flex; align-items: flex-start; gap: ${EXPORT_COLUMN_GAP}px;`;
-          const columns = [doc.createElement('div'), doc.createElement('div')];
+          const columns = Array.from({ length: columnCount }, () => doc.createElement('div'));
 
           for (const column of columns) {
             column.style.cssText =
               'display: flex; flex: 1 1 0; flex-direction: column; min-width: 0;';
           }
 
-          const safeSplit = Math.min(Math.max(splitIndex, 1), rows.length - 1);
-          rows.forEach((row, index) => {
-            columns[index < safeSplit ? 0 : 1].appendChild(row);
+          columnGroups.forEach((group, columnIndex) => {
+            for (const rowIndex of group) {
+              const row = rows[rowIndex];
+              if (row) columns[columnIndex].appendChild(row);
+            }
           });
 
           for (const column of columns) {
@@ -328,7 +399,8 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
       if (blob) {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.download = useTwoColumns ? 'tierboxd-2col.png' : 'tierboxd.png';
+        link.download =
+          columnCount > 1 ? `tierboxd-${columnCount}col.png` : 'tierboxd.png';
         link.href = url;
         document.body.appendChild(link);
         link.click();
@@ -415,13 +487,16 @@ export function ExportPanel({ onToggleStats, statsVisible }: Props) {
                 <option value="auto">Auto</option>
                 <option value="single">Single column</option>
                 <option value="two">Two columns</option>
+                <option value="three">Three columns</option>
               </Select>
               <span className="text-xs text-zinc-600">
                 {imageLayout === 'auto'
-                  ? 'Two columns for tall lists.'
-                  : imageLayout === 'two'
-                    ? 'Wider image, shorter height.'
-                    : 'Classic vertical layout.'}
+                  ? 'Chooses 1–3 columns for a balanced shape.'
+                  : imageLayout === 'three'
+                    ? 'Widest layout for very large lists.'
+                    : imageLayout === 'two'
+                      ? 'Wider image, shorter height.'
+                      : 'Classic vertical layout.'}
               </span>
             </div>
             <p className="mt-2 text-xs text-zinc-600">
